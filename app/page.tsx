@@ -189,6 +189,10 @@ export default function HomePage() {
               );
             }
 
+            if (level.type !== "percentage") {
+              return null;
+            }
+
             const baseBreakdown = levels.slice(0, index).map((candidate) => ({
               id: candidate.id,
               name: candidate.name,

@@ -48,6 +48,50 @@ const indirectEquipmentSchema = z.object({
     .gt(0, "Las determinaciones deben ser mayores a cero")
 });
 
+type SublevelAppearance = {
+  container: string;
+  header: string;
+  description: string;
+  tableHead: string;
+  form: string;
+  badge: string;
+};
+
+const indirectSublevelAppearances: SublevelAppearance[] = [
+  {
+    container: "border-emerald-200 bg-emerald-50/90",
+    header: "text-emerald-900",
+    description: "text-emerald-700",
+    tableHead: "bg-emerald-100/80 text-emerald-900",
+    form: "border-emerald-200 bg-white/85 text-emerald-800",
+    badge: "bg-emerald-100 text-emerald-700 hover:bg-emerald-200"
+  },
+  {
+    container: "border-teal-200 bg-teal-50/90",
+    header: "text-teal-900",
+    description: "text-teal-700",
+    tableHead: "bg-teal-100/80 text-teal-900",
+    form: "border-teal-200 bg-white/85 text-teal-800",
+    badge: "bg-teal-100 text-teal-700 hover:bg-teal-200"
+  },
+  {
+    container: "border-lime-200 bg-lime-50/90",
+    header: "text-lime-900",
+    description: "text-lime-700",
+    tableHead: "bg-lime-100/80 text-lime-900",
+    form: "border-lime-200 bg-white/85 text-lime-800",
+    badge: "bg-lime-100 text-lime-700 hover:bg-lime-200"
+  },
+  {
+    container: "border-amber-200 bg-amber-50/90",
+    header: "text-amber-900",
+    description: "text-amber-700",
+    tableHead: "bg-amber-100/80 text-amber-900",
+    form: "border-amber-200 bg-white/85 text-amber-800",
+    badge: "bg-amber-100 text-amber-700 hover:bg-amber-200"
+  }
+];
+
 export function IndirectLevelCard({
   level,
   onSublevelChange
@@ -68,19 +112,19 @@ export function IndirectLevelCard({
   );
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm">
+    <section className="space-y-6 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-lime-100 p-6 shadow-sm">
       <header className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-inta-blue">{level.name}</h2>
+          <h2 className="text-xl font-semibold text-emerald-900">{level.name}</h2>
           <span className="text-lg font-bold text-inta-green">
             {currencyFormatter.format(total)}
           </span>
         </div>
-        <p className="text-sm text-slate-600">{level.description}</p>
-        <ul className="flex flex-wrap gap-3 text-xs text-slate-500">
+        <p className="text-sm text-emerald-800">{level.description}</p>
+        <ul className="flex flex-wrap gap-3 text-xs text-emerald-700">
           {breakdown.map((item) => (
             <li key={item.id} className="flex items-center gap-1">
-              <span className="font-medium text-slate-700">{item.name}:</span>
+              <span className="font-medium text-emerald-800">{item.name}:</span>
               <span>{currencyFormatter.format(item.subtotal)}</span>
             </li>
           ))}
@@ -88,13 +132,19 @@ export function IndirectLevelCard({
       </header>
 
       <div className="space-y-8">
-        {level.sublevels.map((sublevel) => {
+        {level.sublevels.map((sublevel, index) => {
+          const appearance =
+            indirectSublevelAppearances[
+              index % indirectSublevelAppearances.length
+            ];
+
           if (sublevel.type === "shared-resource") {
             return (
               <SharedResourceSublevelSection
                 key={sublevel.id}
                 sublevel={sublevel}
                 onChange={onSublevelChange}
+                appearance={appearance}
               />
             );
           }
@@ -104,13 +154,14 @@ export function IndirectLevelCard({
               key={sublevel.id}
               sublevel={sublevel}
               onChange={onSublevelChange}
+              appearance={appearance}
             />
           );
         })}
 
-        <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <header className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-lg font-semibold text-slate-800">
+        <section className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4">
+          <header className="flex flex-wrap items-center justify-between gap-2 text-emerald-900">
+            <h3 className="text-lg font-semibold">
               Subtotal de Nivel 2 Costos Indirectos Unitarios
             </h3>
             <span className="text-base font-semibold text-inta-green">
@@ -118,10 +169,10 @@ export function IndirectLevelCard({
             </span>
           </header>
 
-          <dl className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+          <dl className="grid gap-2 text-sm text-emerald-800 sm:grid-cols-2">
             {breakdown.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-4">
-                <dt className="font-medium text-slate-700">{item.name}</dt>
+                <dt className="font-medium text-emerald-900">{item.name}</dt>
                 <dd>{currencyFormatter.format(item.subtotal)}</dd>
               </div>
             ))}
@@ -135,11 +186,13 @@ export function IndirectLevelCard({
 interface SharedResourceSublevelSectionProps {
   sublevel: SharedResourceSublevelState;
   onChange: (updated: SharedResourceSublevelState) => void;
+  appearance: SublevelAppearance;
 }
 
 function SharedResourceSublevelSection({
   sublevel,
-  onChange
+  onChange,
+  appearance
 }: SharedResourceSublevelSectionProps) {
   const subtotal = useMemo(
     () => calculateIndirectSublevelSubtotal(sublevel),
@@ -204,32 +257,42 @@ function SharedResourceSublevelSection({
   };
 
   return (
-    <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+    <section
+      className={`space-y-3 rounded-xl border p-4 ${appearance.container}`}
+    >
       <header className="space-y-1">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-800">
+          <h3 className={`text-lg font-semibold ${appearance.header}`}>
             {sublevel.name}
           </h3>
           <span className="text-base font-semibold text-inta-green">
             {currencyFormatter.format(subtotal)}
           </span>
         </div>
-        <p className="text-sm text-slate-600">{sublevel.description}</p>
+        <p className={`text-sm ${appearance.description}`}>
+          {sublevel.description}
+        </p>
       </header>
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-100 text-left">
+          <thead className={`${appearance.tableHead} text-left`}>
             <tr>
-              <th className="px-3 py-2 font-medium text-slate-700">Concepto</th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Concepto
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Costo mensual (ARS)
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Determinaciones mensuales
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">Costo unitario</th>
-              <th className="px-3 py-2 font-medium text-slate-700">Acciones</th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Costo unitario
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -305,7 +368,7 @@ function SharedResourceSublevelSection({
       </div>
 
       <form
-        className="grid gap-3 rounded-lg border border-dashed border-slate-300 bg-white/70 p-4 text-sm text-slate-600 md:grid-cols-4"
+        className={`grid gap-3 rounded-lg border border-dashed p-4 text-sm md:grid-cols-4 ${appearance.form}`}
         onSubmit={(event) => {
           event.preventDefault();
           handleAdd();
@@ -369,11 +432,13 @@ function SharedResourceSublevelSection({
 interface IndirectEquipmentSectionProps {
   sublevel: IndirectEquipmentSublevelState;
   onChange: (updated: IndirectEquipmentSublevelState) => void;
+  appearance: SublevelAppearance;
 }
 
 function IndirectEquipmentSublevelSection({
   sublevel,
-  onChange
+  onChange,
+  appearance
 }: IndirectEquipmentSectionProps) {
   const subtotal = useMemo(
     () => calculateIndirectSublevelSubtotal(sublevel),
@@ -444,39 +509,45 @@ function IndirectEquipmentSublevelSection({
   };
 
   return (
-    <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+    <section
+      className={`space-y-3 rounded-xl border p-4 ${appearance.container}`}
+    >
       <header className="space-y-1">
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold text-slate-800">
+          <h3 className={`text-lg font-semibold ${appearance.header}`}>
             {sublevel.name}
           </h3>
           <span className="text-base font-semibold text-inta-green">
             {currencyFormatter.format(subtotal)}
           </span>
         </div>
-        <p className="text-sm text-slate-600">{sublevel.description}</p>
+        <p className={`text-sm ${appearance.description}`}>
+          {sublevel.description}
+        </p>
       </header>
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-100 text-left">
+          <thead className={`${appearance.tableHead} text-left`}>
             <tr>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Equipamiento menor
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Precio de compra (ARS)
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Vida útil (meses)
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Determinaciones mensuales
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Costo unitario
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">Acciones</th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -572,7 +643,7 @@ function IndirectEquipmentSublevelSection({
       </div>
 
       <form
-        className="grid gap-3 rounded-lg border border-dashed border-slate-300 bg-white/70 p-4 text-sm text-slate-600 md:grid-cols-5"
+        className={`grid gap-3 rounded-lg border border-dashed p-4 text-sm md:grid-cols-5 ${appearance.form}`}
         onSubmit={(event) => {
           event.preventDefault();
           handleAdd();

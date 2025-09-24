@@ -5,13 +5,15 @@ import { IntroPanel } from "@/components/IntroPanel";
 import { LevelOneCard } from "@/components/LevelOneCard";
 import { IndirectLevelCard } from "@/components/IndirectLevelCard";
 import { PercentageLevelCard } from "@/components/PercentageLevelCard";
+import { SequentialPercentageLevelCard } from "@/components/SequentialPercentageLevelCard";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import type {
   LevelKey,
   LevelState,
   PercentageLevelState,
   SublevelState,
-  IndirectSublevelState
+  IndirectSublevelState,
+  SequentialPercentageLevelState
 } from "@/lib/cost-calculation";
 import { calculateTotals } from "@/lib/cost-calculation";
 
@@ -151,6 +153,28 @@ const initialLevels: LevelState[] = [
         items: []
       }
     ]
+  },
+  {
+    id: "afectacionInstitucional",
+    name: "Nivel 4 · Afectación institucional",
+    description:
+      "Distribuye porcentualmente los fondos resultantes entre el Centro Regional o de Investigación y la EEA/Instituto responsable del servicio, siguiendo los acuerdos de la Fundación ArgenINTA.",
+    type: "sequential-percentage",
+    base: ["nivel1", "serviciosGenerales", "acreditacion"],
+    steps: [
+      {
+        id: "centroRegional",
+        name: "Centro Regional Córdoba",
+        rate: 5,
+        applyOn: "base"
+      },
+      {
+        id: "eeaMarcosJuarez",
+        name: "EEA Marcos Juárez",
+        rate: 10,
+        applyOn: "remaining"
+      }
+    ]
   }
 ];
 
@@ -230,6 +254,48 @@ export default function HomePage() {
     );
   };
 
+  const handleSequentialPercentageChange = (
+    id: LevelKey,
+    updates: {
+      base?: LevelKey[];
+      steps?: Array<{ id: string; rate: number }>;
+    }
+  ) => {
+    setLevels((prev) =>
+      prev.map((level, index) => {
+        if (level.id !== id || level.type !== "sequential-percentage") {
+          return level;
+        }
+
+        const allowedBase = new Set(
+          prev.slice(0, index).map((candidate) => candidate.id)
+        );
+
+        const nextSteps = updates.steps
+          ? level.steps.map((step) => {
+              const updated = updates.steps?.find((item) => item.id === step.id);
+              if (!updated || Number.isNaN(updated.rate)) {
+                return step;
+              }
+
+              return {
+                ...step,
+                rate: updated.rate
+              } satisfies SequentialPercentageLevelState["steps"][number];
+            })
+          : level.steps;
+
+        return {
+          ...level,
+          base: updates.base
+            ? updates.base.filter((key) => allowedBase.has(key))
+            : level.base,
+          steps: nextSteps
+        } satisfies SequentialPercentageLevelState;
+      })
+    );
+  };
+
   const handleExport = () => {
     const payload = {
       generatedAt: new Date().toISOString(),
@@ -279,12 +345,32 @@ export default function HomePage() {
             );
           }
 
+          if (level.type === "sequential-percentage") {
+            const baseBreakdown = levels.slice(0, index).map((candidate) => ({
+              id: candidate.id,
+              name: candidate.name,
+              subtotal: totals[candidate.id]
+            }));
+
+            return (
+              <SequentialPercentageLevelCard
+                key={level.id}
+                level={level}
+                onChange={(updates) =>
+                  handleSequentialPercentageChange(level.id, updates)
+                }
+                baseBreakdown={baseBreakdown}
+                currentTotals={totals}
+              />
+            );
+          }
+
           if (level.type !== "percentage") {
             return null;
           }
 
-            const baseBreakdown = levels.slice(0, index).map((candidate) => ({
-              id: candidate.id,
+          const baseBreakdown = levels.slice(0, index).map((candidate) => ({
+            id: candidate.id,
               name: candidate.name,
               subtotal: totals[candidate.id]
             }));

@@ -1,4 +1,8 @@
-export type LevelKey = "nivel1" | "serviciosGenerales" | "acreditacion";
+export type LevelKey =
+  | "nivel1"
+  | "serviciosGenerales"
+  | "acreditacion"
+  | "afectacionInstitucional";
 
 export type SublevelKey =
   | "insumosDirectos"
@@ -160,11 +164,28 @@ export interface PercentageLevelState {
   base: LevelKey[]; // levels that form the base for percentage calculation
 }
 
+export interface SequentialPercentageStepState {
+  id: string;
+  name: string;
+  rate: number;
+  applyOn: "base" | "remaining";
+}
+
+export interface SequentialPercentageLevelState {
+  id: LevelKey;
+  name: string;
+  description: string;
+  type: "sequential-percentage";
+  base: LevelKey[];
+  steps: SequentialPercentageStepState[];
+}
+
 export type LevelState =
   | DirectLevelState
   | DirectLevelGroupState
   | PercentageLevelState
-  | IndirectLevelGroupState;
+  | IndirectLevelGroupState
+  | SequentialPercentageLevelState;
 
 export interface LevelTotal {
   id: LevelKey;
@@ -172,9 +193,10 @@ export interface LevelTotal {
   subtotal: number;
   rate?: number;
   breakdown?: {
-    id: SublevelKey | IndirectSublevelKey;
+    id: SublevelKey | IndirectSublevelKey | string;
     name: string;
     subtotal: number;
+    rate?: number;
   }[];
 }
 
@@ -312,6 +334,34 @@ export function calculatePercentageLevel(
   return (level.rate / 100) * baseValue;
 }
 
+export function calculateSequentialPercentageLevel(
+  level: SequentialPercentageLevelState,
+  totals: Record<LevelKey, number>
+): { subtotal: number; breakdown: { id: string; name: string; subtotal: number; rate: number }[] } {
+  const baseValue = level.base.reduce((acc, key) => acc + (totals[key] ?? 0), 0);
+  let remaining = baseValue;
+
+  const breakdown = level.steps.map((step) => {
+    const applicableBase = step.applyOn === "remaining" ? remaining : baseValue;
+    const subtotal = (step.rate / 100) * applicableBase;
+
+    if (step.applyOn === "remaining") {
+      remaining -= subtotal;
+    }
+
+    return {
+      id: step.id,
+      name: step.name,
+      subtotal,
+      rate: step.rate
+    };
+  });
+
+  const subtotal = breakdown.reduce((acc, item) => acc + item.subtotal, 0);
+
+  return { subtotal, breakdown };
+}
+
 export function calculateTotals(levels: LevelState[]): {
   totals: Record<LevelKey, number>;
   orderedTotals: LevelTotal[];
@@ -320,7 +370,8 @@ export function calculateTotals(levels: LevelState[]): {
   const totals: Record<LevelKey, number> = {
     nivel1: 0,
     serviciosGenerales: 0,
-    acreditacion: 0
+    acreditacion: 0,
+    afectacionInstitucional: 0
   };
   const orderedTotals: LevelTotal[] = [];
 
@@ -340,6 +391,18 @@ export function calculateTotals(levels: LevelState[]): {
       });
     } else if (level.type === "indirect-group") {
       const { subtotal, breakdown } = calculateIndirectGroupLevel(level);
+      totals[level.id] = subtotal;
+      orderedTotals.push({
+        id: level.id,
+        name: level.name,
+        subtotal,
+        breakdown
+      });
+    } else if (level.type === "sequential-percentage") {
+      const { subtotal, breakdown } = calculateSequentialPercentageLevel(
+        level,
+        totals
+      );
       totals[level.id] = subtotal;
       orderedTotals.push({
         id: level.id,

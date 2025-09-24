@@ -21,16 +21,40 @@ export function SummaryPanel({ orderedTotals, grandTotal }: SummaryPanelProps) {
 
       <ul className="space-y-3 text-sm text-slate-600">
         {orderedTotals.map((level) => (
-          <li key={level.id} className="flex items-start justify-between gap-2">
-            <div>
-              <p className="font-medium text-slate-800">{level.name}</p>
-              {typeof level.rate === "number" ? (
-                <p className="text-xs text-slate-500">{level.rate}% aplicado</p>
-              ) : null}
+          <li key={level.id} className="space-y-1">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <p className="font-medium text-slate-800">{level.name}</p>
+                {typeof level.rate === "number" ? (
+                  <p className="text-xs text-slate-500">
+                    {level.rate}% aplicado
+                  </p>
+                ) : null}
+              </div>
+              <span className="font-semibold text-slate-900">
+                {currencyFormatter.format(level.subtotal)}
+              </span>
             </div>
-            <span className="font-semibold text-slate-900">
-              {currencyFormatter.format(level.subtotal)}
-            </span>
+            {level.breakdown && level.breakdown.length > 0 ? (
+              <ul className="space-y-1 rounded-lg bg-slate-50/80 p-3 text-xs text-slate-500">
+                {level.breakdown.map((item) => (
+                  <li
+                    key={item.id}
+                    className="flex items-center justify-between gap-2"
+                  >
+                    <span>
+                      {item.name}
+                      {typeof item.rate === "number"
+                        ? ` · ${item.rate}%`
+                        : ""}
+                    </span>
+                    <span className="font-medium text-slate-700">
+                      {currencyFormatter.format(item.subtotal)}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
           </li>
         ))}
       </ul>

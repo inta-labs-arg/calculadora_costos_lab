@@ -1,4 +1,4 @@
-export type LevelKey = "nivel1" | "serviciosGenerales" | "gestion";
+export type LevelKey = "nivel1" | "serviciosGenerales" | "acreditacion";
 
 export type SublevelKey =
   | "insumosDirectos"
@@ -9,7 +9,10 @@ export type IndirectSublevelKey =
   | "materialesNoDescartables"
   | "equipamientoMenor"
   | "mantenimientoEquipamiento"
-  | "infraestructura";
+  | "infraestructura"
+  | "acreditacionTercerasPartes"
+  | "monitoreoRegulatorio"
+  | "ensayosInterlaboratorio";
 
 export interface CostItem {
   id: string;
@@ -102,7 +105,10 @@ export interface SharedResourceSublevelState {
   id:
     | "materialesNoDescartables"
     | "mantenimientoEquipamiento"
-    | "infraestructura";
+    | "infraestructura"
+    | "acreditacionTercerasPartes"
+    | "monitoreoRegulatorio"
+    | "ensayosInterlaboratorio";
   name: string;
   description: string;
   type: "shared-resource";
@@ -314,7 +320,7 @@ export function calculateTotals(levels: LevelState[]): {
   const totals: Record<LevelKey, number> = {
     nivel1: 0,
     serviciosGenerales: 0,
-    gestion: 0
+    acreditacion: 0
   };
   const orderedTotals: LevelTotal[] = [];
 

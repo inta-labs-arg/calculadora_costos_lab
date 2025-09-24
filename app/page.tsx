@@ -120,13 +120,37 @@ const initialLevels: LevelState[] = [
     ]
   },
   {
-    id: "gestion",
-    name: "Nivel 3 · Gestión estratégica y margen",
+    id: "acreditacion",
+    name: "Nivel 3 · Acreditación y monitoreo de prácticas de laboratorio",
     description:
-      "Incorpora la supervisión institucional, gestión comercial y un margen de reinversión para garantizar la sostenibilidad del servicio.",
-    type: "percentage",
-    rate: 8,
-    base: ["nivel1", "serviciosGenerales"]
+      "Integra los costos estratégicos necesarios para asegurar la calidad, confiabilidad y trazabilidad de cada práctica mediante certificaciones, controles regulatorios y ensayos comparativos.",
+    type: "indirect-group",
+    sublevels: [
+      {
+        id: "acreditacionTercerasPartes",
+        name: "Subnivel 1 · Acreditación de terceras partes",
+        description:
+          "Incluye los aranceles y auditorías requeridas por el Organismo Argentino de Acreditación (OAA) bajo la Norma ISO/IEC 17025 para garantizar la competencia técnica.",
+        type: "shared-resource",
+        items: []
+      },
+      {
+        id: "monitoreoRegulatorio",
+        name: "Subnivel 2 · Monitoreo de organismos regulatorios",
+        description:
+          "Considera inspecciones, tasas y auditorías asociadas al cumplimiento de normativas de SENASA y ANMAT que habilitan las determinaciones oficiales.",
+        type: "shared-resource",
+        items: []
+      },
+      {
+        id: "ensayosInterlaboratorio",
+        name: "Subnivel 3 · Participación de ensayos interlaboratorio",
+        description:
+          "Registra las inscripciones y envíos necesarios para participar en comparaciones de desempeño obligatorias o recomendadas que respaldan la calidad analítica.",
+        type: "shared-resource",
+        items: []
+      }
+    ]
   }
 ];
 

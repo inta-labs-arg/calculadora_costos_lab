@@ -1,63 +1,98 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { DirectLevelCard } from "@/components/DirectLevelCard";
 import { IntroPanel } from "@/components/IntroPanel";
+import { LevelOneCard } from "@/components/LevelOneCard";
 import { PercentageLevelCard } from "@/components/PercentageLevelCard";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import type {
-  CostItem,
   LevelKey,
   LevelState,
-  PercentageLevelState
+  PercentageLevelState,
+  SublevelState
 } from "@/lib/cost-calculation";
 import { calculateTotals } from "@/lib/cost-calculation";
 
 const initialLevels: LevelState[] = [
   {
-    id: "rrhh",
-    name: "Nivel 1 · Recursos humanos",
+    id: "nivel1",
+    name: "Nivel 1 · Costos Directos Unitarios",
     description:
-      "Carga las horas técnicas, operativas y de apoyo necesarias para brindar el servicio, incluyendo honorarios y cargas sociales.",
-    type: "direct",
-    unitLabel: "Horas por servicio",
-    items: []
-  },
-  {
-    id: "insumos",
-    name: "Nivel 2 · Insumos y reactivos",
-    description:
-      "Detalla consumibles, reactivos críticos y materiales específicos requeridos por unidad de servicio.",
-    type: "direct",
-    unitLabel: "Unidades por servicio",
-    items: []
-  },
-  {
-    id: "equipamiento",
-    name: "Nivel 3 · Equipamiento y amortización",
-    description:
-      "Valúa el uso del equipamiento asignando tarifas horarias que incluyan depreciación, mantenimiento y servicios asociados.",
-    type: "direct",
-    unitLabel: "Horas de uso",
-    items: []
+      "Integra los costos específicos que se consumen en cada determinación: insumos directos, mano de obra especializada y equipamiento asociado.",
+    type: "direct-group",
+    sublevels: [
+      {
+        id: "insumosDirectos",
+        name: "Subnivel 1 · Insumos directos",
+        description:
+          "Registra los materiales, reactivos y consumibles específicos que se emplean en cada determinación. Permite consignar unidad de medida, cantidad y costo unitario para estimar el costo por muestra.",
+        type: "insumos",
+        items: []
+      },
+      {
+        id: "manoDeObraDirecta",
+        name: "Subnivel 2 · Mano de obra directa",
+        description:
+          "Estima las horas involucradas del personal que participa en la práctica (profesionales, técnicos, apoyos y becarios) y sus tarifas para calcular el costo laboral directo.",
+        type: "manoObra",
+        items: [
+          {
+            id: "professional",
+            role: "professional",
+            label: "Profesional investigador",
+            hours: 0,
+            rate: 0
+          },
+          {
+            id: "technician",
+            role: "technician",
+            label: "Técnico",
+            hours: 0,
+            rate: 0
+          },
+          {
+            id: "support",
+            role: "support",
+            label: "Personal de apoyo",
+            hours: 0,
+            rate: 0
+          },
+          {
+            id: "intern",
+            role: "intern",
+            label: "Becario",
+            hours: 0,
+            rate: 0
+          }
+        ]
+      },
+      {
+        id: "equipamientoEspecifico",
+        name: "Subnivel 3 · Equipamiento específico",
+        description:
+          "Permite calcular la depreciación y los servicios de calibración asociados al equipamiento utilizado en la determinación, considerando vida útil y frecuencia de calibración.",
+        type: "equipamiento",
+        items: []
+      }
+    ]
   },
   {
     id: "serviciosGenerales",
-    name: "Nivel 4 · Servicios generales y soporte",
+    name: "Nivel 2 · Servicios generales y soporte",
     description:
       "Aplica un porcentaje para cubrir utilidades comunes: energía, agua, limpieza, bioseguridad, calibraciones transversales y soporte administrativo.",
     type: "percentage",
     rate: 12,
-    base: ["rrhh", "insumos", "equipamiento"]
+    base: ["nivel1"]
   },
   {
     id: "gestion",
-    name: "Nivel 5 · Gestión estratégica y margen",
+    name: "Nivel 3 · Gestión estratégica y margen",
     description:
       "Incorpora la supervisión institucional, gestión comercial y un margen de reinversión para garantizar la sostenibilidad del servicio.",
     type: "percentage",
     rate: 8,
-    base: ["rrhh", "insumos", "equipamiento", "serviciosGenerales"]
+    base: ["nivel1", "serviciosGenerales"]
   }
 ];
 
@@ -69,16 +104,23 @@ export default function HomePage() {
     [levels]
   );
 
-  const handleDirectChange = (id: LevelKey, items: CostItem[]) => {
+  const handleSublevelChange = (
+    id: LevelKey,
+    updatedSublevel: SublevelState
+  ) => {
     setLevels((prev) =>
-      prev.map((level) =>
-        level.id === id && level.type === "direct"
-          ? {
-              ...level,
-              items
-            }
-          : level
-      )
+      prev.map((level) => {
+        if (level.id !== id || level.type !== "direct-group") {
+          return level;
+        }
+
+        return {
+          ...level,
+          sublevels: level.sublevels.map((sublevel) =>
+            sublevel.id === updatedSublevel.id ? updatedSublevel : sublevel
+          )
+        };
+      })
     );
   };
 
@@ -115,10 +157,7 @@ export default function HomePage() {
       generatedAt: new Date().toISOString(),
       totals,
       grandTotal,
-      levels: levels.map((level) => ({
-        ...level,
-        items: level.type === "direct" ? level.items : undefined
-      }))
+      levels
     };
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
       type: "application/json"
@@ -138,12 +177,14 @@ export default function HomePage() {
 
         <div className="space-y-6">
           {levels.map((level, index) => {
-            if (level.type === "direct") {
+            if (level.type === "direct-group") {
               return (
-                <DirectLevelCard
+                <LevelOneCard
                   key={level.id}
                   level={level}
-                  onChange={(items) => handleDirectChange(level.id, items)}
+                  onSublevelChange={(sublevel) =>
+                    handleSublevelChange(level.id, sublevel)
+                  }
                 />
               );
             }

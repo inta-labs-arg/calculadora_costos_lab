@@ -1,9 +1,9 @@
-export type LevelKey =
-  | "rrhh"
-  | "insumos"
-  | "equipamiento"
-  | "serviciosGenerales"
-  | "gestion";
+export type LevelKey = "nivel1" | "serviciosGenerales" | "gestion";
+
+export type SublevelKey =
+  | "insumosDirectos"
+  | "manoDeObraDirecta"
+  | "equipamientoEspecifico";
 
 export interface CostItem {
   id: string;
@@ -23,6 +23,76 @@ export interface DirectLevelState {
   items: CostItem[];
 }
 
+export interface SupplyCostItem {
+  id: string;
+  item: string;
+  unitOfMeasure: string;
+  quantity: number;
+  unitCost: number;
+  currency: string;
+}
+
+export type LaborRole =
+  | "professional"
+  | "technician"
+  | "support"
+  | "intern";
+
+export interface LaborCostItem {
+  id: string;
+  role: LaborRole;
+  label: string;
+  hours: number;
+  rate: number;
+}
+
+export interface EquipmentCostItem {
+  id: string;
+  name: string;
+  model: string;
+  usefulLifeDeterminations: number;
+  purchasePrice: number;
+  calibrationCost: number;
+  calibrationPeriodDeterminations: number;
+}
+
+export interface SupplySublevelState {
+  id: "insumosDirectos";
+  name: string;
+  description: string;
+  type: "insumos";
+  items: SupplyCostItem[];
+}
+
+export interface LaborSublevelState {
+  id: "manoDeObraDirecta";
+  name: string;
+  description: string;
+  type: "manoObra";
+  items: LaborCostItem[];
+}
+
+export interface EquipmentSublevelState {
+  id: "equipamientoEspecifico";
+  name: string;
+  description: string;
+  type: "equipamiento";
+  items: EquipmentCostItem[];
+}
+
+export type SublevelState =
+  | SupplySublevelState
+  | LaborSublevelState
+  | EquipmentSublevelState;
+
+export interface DirectLevelGroupState {
+  id: LevelKey;
+  name: string;
+  description: string;
+  type: "direct-group";
+  sublevels: SublevelState[];
+}
+
 export interface PercentageLevelState {
   id: LevelKey;
   name: string;
@@ -32,13 +102,17 @@ export interface PercentageLevelState {
   base: LevelKey[]; // levels that form the base for percentage calculation
 }
 
-export type LevelState = DirectLevelState | PercentageLevelState;
+export type LevelState =
+  | DirectLevelState
+  | DirectLevelGroupState
+  | PercentageLevelState;
 
 export interface LevelTotal {
   id: LevelKey;
   name: string;
   subtotal: number;
   rate?: number;
+  breakdown?: { id: SublevelKey; name: string; subtotal: number }[];
 }
 
 export const currencyFormatter = new Intl.NumberFormat("es-AR", {
@@ -49,6 +123,65 @@ export const currencyFormatter = new Intl.NumberFormat("es-AR", {
 
 export function calculateDirectLevel(level: DirectLevelState): number {
   return level.items.reduce((acc, item) => acc + item.quantity * item.unitCost, 0);
+}
+
+export function calculateSupplyItemCost(item: SupplyCostItem): number {
+  return item.quantity * item.unitCost;
+}
+
+export function calculateLaborItemCost(item: LaborCostItem): number {
+  return item.hours * item.rate;
+}
+
+export function calculateEquipmentItemCost(item: EquipmentCostItem): number {
+  const depreciation =
+    item.usefulLifeDeterminations > 0
+      ? item.purchasePrice / item.usefulLifeDeterminations
+      : 0;
+  const calibrationAllocation =
+    item.calibrationPeriodDeterminations > 0
+      ? item.calibrationCost / item.calibrationPeriodDeterminations
+      : 0;
+  return depreciation + calibrationAllocation;
+}
+
+export function calculateSublevelSubtotal(sublevel: SublevelState): number {
+  switch (sublevel.type) {
+    case "insumos":
+      return sublevel.items.reduce(
+        (acc, item) => acc + calculateSupplyItemCost(item),
+        0
+      );
+    case "manoObra":
+      return sublevel.items.reduce(
+        (acc, item) => acc + calculateLaborItemCost(item),
+        0
+      );
+    case "equipamiento":
+      return sublevel.items.reduce(
+        (acc, item) => acc + calculateEquipmentItemCost(item),
+        0
+      );
+    default: {
+      const exhaustiveCheck: never = sublevel;
+      return exhaustiveCheck;
+    }
+  }
+}
+
+export function calculateDirectGroupLevel(level: DirectLevelGroupState): {
+  subtotal: number;
+  breakdown: { id: SublevelKey; name: string; subtotal: number }[];
+} {
+  const breakdown = level.sublevels.map((sublevel) => ({
+    id: sublevel.id,
+    name: sublevel.name,
+    subtotal: calculateSublevelSubtotal(sublevel)
+  }));
+
+  const subtotal = breakdown.reduce((acc, item) => acc + item.subtotal, 0);
+
+  return { subtotal, breakdown };
 }
 
 export function calculatePercentageLevel(
@@ -65,9 +198,7 @@ export function calculateTotals(levels: LevelState[]): {
   grandTotal: number;
 } {
   const totals: Record<LevelKey, number> = {
-    rrhh: 0,
-    insumos: 0,
-    equipamiento: 0,
+    nivel1: 0,
     serviciosGenerales: 0,
     gestion: 0
   };
@@ -78,6 +209,15 @@ export function calculateTotals(levels: LevelState[]): {
       const subtotal = calculateDirectLevel(level);
       totals[level.id] = subtotal;
       orderedTotals.push({ id: level.id, name: level.name, subtotal });
+    } else if (level.type === "direct-group") {
+      const { subtotal, breakdown } = calculateDirectGroupLevel(level);
+      totals[level.id] = subtotal;
+      orderedTotals.push({
+        id: level.id,
+        name: level.name,
+        subtotal,
+        breakdown
+      });
     } else {
       const subtotal = calculatePercentageLevel(level, totals);
       totals[level.id] = subtotal;

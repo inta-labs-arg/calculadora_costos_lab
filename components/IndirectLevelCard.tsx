@@ -162,7 +162,7 @@ export function IndirectLevelCard({
         <section className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-4">
           <header className="flex flex-wrap items-center justify-between gap-2 text-emerald-900">
             <h3 className="text-lg font-semibold">
-              Subtotal de Nivel 2 Costos Indirectos Unitarios
+              Subtotal de {level.name}
             </h3>
             <span className="text-base font-semibold text-inta-green">
               {currencyFormatter.format(total)}

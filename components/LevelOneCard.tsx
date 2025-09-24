@@ -58,6 +58,42 @@ const equipmentSchema = z.object({
     .gt(0, "Las determinaciones del período deben ser mayores a cero")
 });
 
+type SublevelAppearance = {
+  container: string;
+  header: string;
+  description: string;
+  tableHead: string;
+  form: string;
+  badge: string;
+};
+
+const directSublevelAppearances: SublevelAppearance[] = [
+  {
+    container: "border-sky-200 bg-sky-50/90",
+    header: "text-sky-900",
+    description: "text-sky-700",
+    tableHead: "bg-sky-100/80 text-sky-900",
+    form: "border-sky-200 bg-white/85 text-sky-800",
+    badge: "bg-sky-100 text-sky-700 hover:bg-sky-200"
+  },
+  {
+    container: "border-indigo-200 bg-indigo-50/90",
+    header: "text-indigo-900",
+    description: "text-indigo-700",
+    tableHead: "bg-indigo-100/80 text-indigo-900",
+    form: "border-indigo-200 bg-white/85 text-indigo-800",
+    badge: "bg-indigo-100 text-indigo-700 hover:bg-indigo-200"
+  },
+  {
+    container: "border-cyan-200 bg-cyan-50/90",
+    header: "text-cyan-900",
+    description: "text-cyan-700",
+    tableHead: "bg-cyan-100/80 text-cyan-900",
+    form: "border-cyan-200 bg-white/85 text-cyan-800",
+    badge: "bg-cyan-100 text-cyan-700 hover:bg-cyan-200"
+  }
+];
+
 export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
   const breakdown = useMemo(
     () =>
@@ -75,21 +111,21 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
   );
 
   return (
-    <section className="space-y-6 rounded-2xl border border-slate-200 bg-white/80 p-6 shadow-sm">
+    <section className="space-y-6 rounded-2xl border border-sky-200 bg-gradient-to-br from-sky-50 via-white to-sky-100 p-6 shadow-sm">
       <header className="space-y-2">
         <div className="flex items-center justify-between">
-          <h2 className="text-xl font-semibold text-inta-blue">
+          <h2 className="text-xl font-semibold text-sky-900">
             {level.name}
           </h2>
           <span className="text-lg font-bold text-inta-green">
             {currencyFormatter.format(total)}
           </span>
         </div>
-        <p className="text-sm text-slate-600">{level.description}</p>
-        <ul className="flex flex-wrap gap-3 text-xs text-slate-500">
+        <p className="text-sm text-sky-800">{level.description}</p>
+        <ul className="flex flex-wrap gap-3 text-xs text-sky-700">
           {breakdown.map((item) => (
             <li key={item.id} className="flex items-center gap-1">
-              <span className="font-medium text-slate-700">{item.name}:</span>
+              <span className="font-medium text-sky-800">{item.name}:</span>
               <span>{currencyFormatter.format(item.subtotal)}</span>
             </li>
           ))}
@@ -97,13 +133,17 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
       </header>
 
       <div className="space-y-8">
-        {level.sublevels.map((sublevel) => {
+        {level.sublevels.map((sublevel, index) => {
+          const appearance =
+            directSublevelAppearances[index % directSublevelAppearances.length];
+
           if (sublevel.type === "insumos") {
             return (
               <SupplySublevelSection
                 key={sublevel.id}
                 sublevel={sublevel}
                 onChange={onSublevelChange}
+                appearance={appearance}
               />
             );
           }
@@ -114,6 +154,7 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
                 key={sublevel.id}
                 sublevel={sublevel}
                 onChange={onSublevelChange}
+                appearance={appearance}
               />
             );
           }
@@ -123,13 +164,14 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
               key={sublevel.id}
               sublevel={sublevel}
               onChange={onSublevelChange}
+              appearance={appearance}
             />
           );
         })}
 
-        <section className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
-          <header className="flex flex-wrap items-center justify-between gap-2">
-            <h3 className="text-lg font-semibold text-slate-800">
+        <section className="space-y-3 rounded-xl border border-sky-200 bg-sky-50/80 p-4">
+          <header className="flex flex-wrap items-center justify-between gap-2 text-sky-900">
+            <h3 className="text-lg font-semibold">
               Subtotal de Nivel 1 Costos Directos Unitarios
             </h3>
             <span className="text-base font-semibold text-inta-green">
@@ -137,10 +179,10 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
             </span>
           </header>
 
-          <dl className="grid gap-2 text-sm text-slate-600 sm:grid-cols-2">
+          <dl className="grid gap-2 text-sm text-sky-800 sm:grid-cols-2">
             {breakdown.map((item) => (
               <div key={item.id} className="flex items-center justify-between gap-4">
-                <dt className="font-medium text-slate-700">{item.name}</dt>
+                <dt className="font-medium text-sky-900">{item.name}</dt>
                 <dd>{currencyFormatter.format(item.subtotal)}</dd>
               </div>
             ))}
@@ -154,11 +196,13 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
 interface SublevelSectionProps<T extends SublevelState> {
   sublevel: T;
   onChange: (updated: T) => void;
+  appearance: SublevelAppearance;
 }
 
 function SupplySublevelSection({
   sublevel,
-  onChange
+  onChange,
+  appearance
 }: SublevelSectionProps<SupplySublevelState>) {
   const subtotal = useMemo(
     () => calculateSublevelSubtotal(sublevel),
@@ -235,13 +279,17 @@ function SupplySublevelSection({
   };
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-200 p-4">
+    <section
+      className={`space-y-4 rounded-xl border p-4 ${appearance.container}`}
+    >
       <header className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800">
+          <h3 className={`text-lg font-semibold ${appearance.header}`}>
             {sublevel.name}
           </h3>
-          <p className="text-sm text-slate-600">{sublevel.description}</p>
+          <p className={`text-sm ${appearance.description}`}>
+            {sublevel.description}
+          </p>
         </div>
         <span className="text-base font-semibold text-inta-green">
           {currencyFormatter.format(subtotal)}
@@ -250,17 +298,29 @@ function SupplySublevelSection({
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-100 text-left">
+          <thead className={`${appearance.tableHead} text-left`}>
             <tr>
-              <th className="px-3 py-2 font-medium text-slate-700">Ítem</th>
-              <th className="px-3 py-2 font-medium text-slate-700">Unidad de medida</th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Ítem
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Unidad de medida
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Cantidad por determinación
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">Costo unitario</th>
-              <th className="px-3 py-2 font-medium text-slate-700">Costo por muestra</th>
-              <th className="px-3 py-2 font-medium text-slate-700">Moneda</th>
-              <th className="px-3 py-2 font-medium text-slate-700">Acciones</th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Costo unitario
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Costo por muestra
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Moneda
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -341,7 +401,7 @@ function SupplySublevelSection({
                   <button
                     type="button"
                     onClick={() => handleDelete(item.id)}
-                    className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200"
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${appearance.badge}`}
                   >
                     Eliminar
                   </button>
@@ -352,12 +412,14 @@ function SupplySublevelSection({
         </table>
       </div>
 
-      <div className="space-y-3 rounded-xl border border-dashed border-slate-300 p-4">
-        <h4 className="text-sm font-semibold text-slate-700">
+      <div
+        className={`space-y-3 rounded-xl border border-dashed p-4 ${appearance.form}`}
+      >
+        <h4 className={`text-sm font-semibold ${appearance.header}`}>
           Agregar un nuevo insumo directo
         </h4>
         <div className="grid gap-3 md:grid-cols-5">
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Ítem
             <input
               type="text"
@@ -369,7 +431,7 @@ function SupplySublevelSection({
               placeholder="Ej. Reactivo, filtro, vial"
             />
           </label>
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Unidad de medida
             <input
               type="text"
@@ -381,7 +443,7 @@ function SupplySublevelSection({
               placeholder="Litros, gramos, unidades"
             />
           </label>
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Cantidad por determinación
             <input
               type="number"
@@ -395,7 +457,7 @@ function SupplySublevelSection({
               placeholder="Ej. 0,25"
             />
           </label>
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Costo unitario (ARS)
             <input
               type="number"
@@ -409,7 +471,7 @@ function SupplySublevelSection({
               placeholder="Valor de referencia"
             />
           </label>
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Moneda
             <input
               type="text"
@@ -439,7 +501,8 @@ function SupplySublevelSection({
 
 function LaborSublevelSection({
   sublevel,
-  onChange
+  onChange,
+  appearance
 }: SublevelSectionProps<LaborSublevelState>) {
   const subtotal = useMemo(
     () => calculateSublevelSubtotal(sublevel),
@@ -464,13 +527,17 @@ function LaborSublevelSection({
   };
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-200 p-4">
+    <section
+      className={`space-y-4 rounded-xl border p-4 ${appearance.container}`}
+    >
       <header className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800">
+          <h3 className={`text-lg font-semibold ${appearance.header}`}>
             {sublevel.name}
           </h3>
-          <p className="text-sm text-slate-600">{sublevel.description}</p>
+          <p className={`text-sm ${appearance.description}`}>
+            {sublevel.description}
+          </p>
         </div>
         <span className="text-base font-semibold text-inta-green">
           {currencyFormatter.format(subtotal)}
@@ -479,16 +546,20 @@ function LaborSublevelSection({
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-100 text-left">
+          <thead className={`${appearance.tableHead} text-left`}>
             <tr>
-              <th className="px-3 py-2 font-medium text-slate-700">Perfil</th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Perfil
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Horas por determinación
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Valor por hora/día
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">Subtotal</th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Subtotal
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -540,7 +611,8 @@ function LaborSublevelSection({
 
 function EquipmentSublevelSection({
   sublevel,
-  onChange
+  onChange,
+  appearance
 }: SublevelSectionProps<EquipmentSublevelState>) {
   const subtotal = useMemo(
     () => calculateSublevelSubtotal(sublevel),
@@ -634,13 +706,17 @@ function EquipmentSublevelSection({
   };
 
   return (
-    <section className="space-y-4 rounded-xl border border-slate-200 p-4">
+    <section
+      className={`space-y-4 rounded-xl border p-4 ${appearance.container}`}
+    >
       <header className="flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-slate-800">
+          <h3 className={`text-lg font-semibold ${appearance.header}`}>
             {sublevel.name}
           </h3>
-          <p className="text-sm text-slate-600">{sublevel.description}</p>
+          <p className={`text-sm ${appearance.description}`}>
+            {sublevel.description}
+          </p>
         </div>
         <span className="text-base font-semibold text-inta-green">
           {currencyFormatter.format(subtotal)}
@@ -649,22 +725,32 @@ function EquipmentSublevelSection({
 
       <div className="overflow-x-auto">
         <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-100 text-left">
+          <thead className={`${appearance.tableHead} text-left`}>
             <tr>
-              <th className="px-3 py-2 font-medium text-slate-700">Equipo</th>
-              <th className="px-3 py-2 font-medium text-slate-700">Modelo / referencia</th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Equipo
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Modelo / referencia
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Vida útil (determinaciones)
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">Precio de compra</th>
-              <th className="px-3 py-2 font-medium text-slate-700">Costo de calibración</th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Precio de compra
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Costo de calibración
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Determinaciones por período de calibración
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Costo por determinación
               </th>
-              <th className="px-3 py-2 font-medium text-slate-700">Acciones</th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Acciones
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-slate-200">
@@ -763,7 +849,7 @@ function EquipmentSublevelSection({
                   <button
                     type="button"
                     onClick={() => handleDelete(item.id)}
-                    className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200"
+                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${appearance.badge}`}
                   >
                     Eliminar
                   </button>
@@ -774,12 +860,14 @@ function EquipmentSublevelSection({
         </table>
       </div>
 
-      <div className="space-y-3 rounded-xl border border-dashed border-slate-300 p-4">
-        <h4 className="text-sm font-semibold text-slate-700">
+      <div
+        className={`space-y-3 rounded-xl border border-dashed p-4 ${appearance.form}`}
+      >
+        <h4 className={`text-sm font-semibold ${appearance.header}`}>
           Agregar equipamiento específico
         </h4>
         <div className="grid gap-3 md:grid-cols-3">
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Equipo
             <input
               type="text"
@@ -791,7 +879,7 @@ function EquipmentSublevelSection({
               placeholder="Ej. Cromatógrafo"
             />
           </label>
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Modelo / referencia
             <input
               type="text"
@@ -803,7 +891,7 @@ function EquipmentSublevelSection({
               placeholder="Detalle identificatorio"
             />
           </label>
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Vida útil (determinaciones)
             <input
               type="number"
@@ -820,7 +908,7 @@ function EquipmentSublevelSection({
               placeholder="Ej. 10000"
             />
           </label>
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Precio de compra (ARS)
             <input
               type="number"
@@ -834,7 +922,7 @@ function EquipmentSublevelSection({
               placeholder="Valor actualizado"
             />
           </label>
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Costo de calibración (ARS)
             <input
               type="number"
@@ -848,7 +936,7 @@ function EquipmentSublevelSection({
               placeholder="Si no aplica, deja en 0"
             />
           </label>
-          <label className="flex flex-col text-sm text-slate-600">
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
             Determinaciones por período de calibración
             <input
               type="number"

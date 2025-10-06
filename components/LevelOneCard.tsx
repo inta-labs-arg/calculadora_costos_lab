@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { z } from "zod";
 import {
   DirectLevelGroupState,
+  CurrencyCode,
   EquipmentCostItem,
   EquipmentSublevelState,
   LaborCostItem,
@@ -18,6 +19,7 @@ import {
   currencyFormatter
 } from "@/lib/cost-calculation";
 import { PlusIcon } from "./icons";
+import { useExchangeRate } from "@/contexts/ExchangeRateContext";
 
 interface LevelOneCardProps {
   level: DirectLevelGroupState;
@@ -33,7 +35,9 @@ const supplySchema = z.object({
   unitCost: z
     .number({ invalid_type_error: "Indica el costo unitario" })
     .nonnegative("El costo debe ser mayor o igual a cero"),
-  currency: z.string().min(1, "Indica la moneda de referencia")
+  currency: z.enum(["ARS", "USD"], {
+    errorMap: () => ({ message: "Selecciona ARS o USD" })
+  })
 });
 
 const equipmentSchema = z.object({
@@ -95,14 +99,17 @@ const directSublevelAppearances: SublevelAppearance[] = [
 ];
 
 export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
+  const {
+    state: { rate: exchangeRate }
+  } = useExchangeRate();
   const breakdown = useMemo(
     () =>
       level.sublevels.map((sublevel) => ({
         id: sublevel.id,
         name: sublevel.name,
-        subtotal: calculateSublevelSubtotal(sublevel)
+        subtotal: calculateSublevelSubtotal(sublevel, { exchangeRate })
       })),
-    [level]
+    [level, exchangeRate]
   );
 
   const total = useMemo(
@@ -144,6 +151,7 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
                 sublevel={sublevel}
                 onChange={onSublevelChange}
                 appearance={appearance}
+                exchangeRate={exchangeRate}
               />
             );
           }
@@ -202,18 +210,19 @@ interface SublevelSectionProps<T extends SublevelState> {
 function SupplySublevelSection({
   sublevel,
   onChange,
-  appearance
-}: SublevelSectionProps<SupplySublevelState>) {
+  appearance,
+  exchangeRate
+}: SublevelSectionProps<SupplySublevelState> & { exchangeRate: number }) {
   const subtotal = useMemo(
-    () => calculateSublevelSubtotal(sublevel),
-    [sublevel]
+    () => calculateSublevelSubtotal(sublevel, { exchangeRate }),
+    [sublevel, exchangeRate]
   );
   const [draft, setDraft] = useState({
     item: "",
     unitOfMeasure: "",
     quantity: "",
     unitCost: "",
-    currency: "ARS"
+    currency: "ARS" as CurrencyCode
   });
   const [error, setError] = useState<string | null>(null);
 
@@ -230,7 +239,7 @@ function SupplySublevelSection({
       unitOfMeasure: draft.unitOfMeasure.trim(),
       quantity: Number(draft.quantity),
       unitCost: Number(draft.unitCost),
-      currency: draft.currency.trim().toUpperCase()
+      currency: draft.currency
     });
 
     if (!parsed.success) {
@@ -244,7 +253,13 @@ function SupplySublevelSection({
     };
 
     onChange({ ...sublevel, items: [...sublevel.items, newItem] });
-    setDraft({ item: "", unitOfMeasure: "", quantity: "", unitCost: "", currency: "ARS" });
+    setDraft({
+      item: "",
+      unitOfMeasure: "",
+      quantity: "",
+      unitCost: "",
+      currency: "ARS"
+    });
   };
 
   const handleItemChange = <K extends keyof SupplyCostItem>(
@@ -265,9 +280,17 @@ function SupplySublevelSection({
         };
       }
 
+      if (field === "currency") {
+        const nextCurrency = (value as CurrencyCode) === "USD" ? "USD" : "ARS";
+        return {
+          ...item,
+          currency: nextCurrency
+        };
+      }
+
       return {
         ...item,
-        [field]: field === "currency" ? value.toUpperCase() : value
+        [field]: value
       };
     });
 
@@ -310,7 +333,7 @@ function SupplySublevelSection({
                 Cantidad por determinación
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Costo unitario
+                Costo unitario (moneda origen)
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Costo por muestra
@@ -385,17 +408,21 @@ function SupplySublevelSection({
                   />
                 </td>
                 <td className="px-3 py-2 text-right font-medium">
-                  {currencyFormatter.format(calculateSupplyItemCost(item))}
+                  {currencyFormatter.format(
+                    calculateSupplyItemCost(item, { exchangeRate })
+                  )}
                 </td>
                 <td className="px-3 py-2">
-                  <input
-                    type="text"
+                  <select
                     value={item.currency}
                     onChange={(event) =>
                       handleItemChange(item.id, "currency", event.target.value)
                     }
-                    className="w-20 rounded-md border border-slate-300 px-2 py-1 text-sm uppercase focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
+                    className="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm uppercase focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  >
+                    <option value="ARS">ARS</option>
+                    <option value="USD">USD</option>
+                  </select>
                 </td>
                 <td className="px-3 py-2 text-right">
                   <button
@@ -458,7 +485,7 @@ function SupplySublevelSection({
             />
           </label>
           <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Costo unitario (ARS)
+            Costo unitario en moneda origen
             <input
               type="number"
               min={0}
@@ -473,15 +500,19 @@ function SupplySublevelSection({
           </label>
           <label className={`flex flex-col text-sm ${appearance.description}`}>
             Moneda
-            <input
-              type="text"
+            <select
               value={draft.currency}
               onChange={(event) =>
-                setDraft((prev) => ({ ...prev, currency: event.target.value }))
+                setDraft((prev) => ({
+                  ...prev,
+                  currency: event.target.value as CurrencyCode
+                }))
               }
               className="mt-1 rounded-md border border-slate-300 px-3 py-2 uppercase focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="ARS, USD"
-            />
+            >
+              <option value="ARS">ARS</option>
+              <option value="USD">USD</option>
+            </select>
           </label>
         </div>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -495,6 +526,10 @@ function SupplySublevelSection({
           </button>
         </div>
       </div>
+      <p className="text-xs text-slate-500">
+        Los importes cargados en USD se convierten automáticamente a ARS
+        utilizando el tipo de cambio configurado en la sección de Configuración.
+      </p>
     </section>
   );
 }

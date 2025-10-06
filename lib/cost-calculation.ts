@@ -36,13 +36,15 @@ export interface DirectLevelState {
   items: CostItem[];
 }
 
+export type CurrencyCode = "ARS" | "USD";
+
 export interface SupplyCostItem {
   id: string;
   item: string;
   unitOfMeasure: string;
   quantity: number;
   unitCost: number;
-  currency: string;
+  currency: CurrencyCode;
 }
 
 export type LaborRole =
@@ -200,6 +202,10 @@ export interface LevelTotal {
   }[];
 }
 
+export interface CalculationOptions {
+  exchangeRate?: number;
+}
+
 export const currencyFormatter = new Intl.NumberFormat("es-AR", {
   style: "currency",
   currency: "ARS",
@@ -210,8 +216,16 @@ export function calculateDirectLevel(level: DirectLevelState): number {
   return level.items.reduce((acc, item) => acc + item.quantity * item.unitCost, 0);
 }
 
-export function calculateSupplyItemCost(item: SupplyCostItem): number {
-  return item.quantity * item.unitCost;
+export function calculateSupplyItemCost(
+  item: SupplyCostItem,
+  options?: CalculationOptions
+): number {
+  const exchangeRate =
+    typeof options?.exchangeRate === "number" && !Number.isNaN(options.exchangeRate)
+      ? options.exchangeRate
+      : 0;
+  const multiplier = item.currency === "USD" ? exchangeRate : 1;
+  return item.quantity * item.unitCost * multiplier;
 }
 
 export function calculateLaborItemCost(item: LaborCostItem): number {
@@ -251,11 +265,14 @@ export function calculateIndirectEquipmentItemCost(
   return monthlyDepreciation / item.determinations;
 }
 
-export function calculateSublevelSubtotal(sublevel: SublevelState): number {
+export function calculateSublevelSubtotal(
+  sublevel: SublevelState,
+  options?: CalculationOptions
+): number {
   switch (sublevel.type) {
     case "insumos":
       return sublevel.items.reduce(
-        (acc, item) => acc + calculateSupplyItemCost(item),
+        (acc, item) => acc + calculateSupplyItemCost(item, options),
         0
       );
     case "manoObra":
@@ -296,14 +313,17 @@ export function calculateIndirectSublevelSubtotal(
   }
 }
 
-export function calculateDirectGroupLevel(level: DirectLevelGroupState): {
+export function calculateDirectGroupLevel(
+  level: DirectLevelGroupState,
+  options?: CalculationOptions
+): {
   subtotal: number;
   breakdown: { id: SublevelKey; name: string; subtotal: number }[];
 } {
   const breakdown = level.sublevels.map((sublevel) => ({
     id: sublevel.id,
     name: sublevel.name,
-    subtotal: calculateSublevelSubtotal(sublevel)
+    subtotal: calculateSublevelSubtotal(sublevel, options)
   }));
 
   const subtotal = breakdown.reduce((acc, item) => acc + item.subtotal, 0);
@@ -362,7 +382,10 @@ export function calculateSequentialPercentageLevel(
   return { subtotal, breakdown };
 }
 
-export function calculateTotals(levels: LevelState[]): {
+export function calculateTotals(
+  levels: LevelState[],
+  options?: CalculationOptions
+): {
   totals: Record<LevelKey, number>;
   orderedTotals: LevelTotal[];
   grandTotal: number;
@@ -381,7 +404,7 @@ export function calculateTotals(levels: LevelState[]): {
       totals[level.id] = subtotal;
       orderedTotals.push({ id: level.id, name: level.name, subtotal });
     } else if (level.type === "direct-group") {
-      const { subtotal, breakdown } = calculateDirectGroupLevel(level);
+      const { subtotal, breakdown } = calculateDirectGroupLevel(level, options);
       totals[level.id] = subtotal;
       orderedTotals.push({
         id: level.id,

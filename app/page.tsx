@@ -7,6 +7,7 @@ import { IndirectLevelCard } from "@/components/IndirectLevelCard";
 import { PercentageLevelCard } from "@/components/PercentageLevelCard";
 import { SequentialPercentageLevelCard } from "@/components/SequentialPercentageLevelCard";
 import { SummaryPanel } from "@/components/SummaryPanel";
+import { ConfigurationPanel } from "@/components/ConfigurationPanel";
 import type {
   LevelKey,
   LevelState,
@@ -16,6 +17,10 @@ import type {
   SequentialPercentageLevelState
 } from "@/lib/cost-calculation";
 import { calculateTotals } from "@/lib/cost-calculation";
+import {
+  ExchangeRateProvider,
+  useExchangeRate
+} from "@/contexts/ExchangeRateContext";
 
 const initialLevels: LevelState[] = [
   {
@@ -178,12 +183,15 @@ const initialLevels: LevelState[] = [
   }
 ];
 
-export default function HomePage() {
+function HomePageContent() {
   const [levels, setLevels] = useState<LevelState[]>(initialLevels);
+  const {
+    state: exchangeRateState
+  } = useExchangeRate();
 
   const { totals, orderedTotals, grandTotal } = useMemo(
-    () => calculateTotals(levels),
-    [levels]
+    () => calculateTotals(levels, { exchangeRate: exchangeRateState.rate }),
+    [levels, exchangeRateState.rate]
   );
 
   const handleSublevelChange = (
@@ -388,9 +396,22 @@ export default function HomePage() {
         </div>
       </div>
 
-      <div className="lg:w-80 lg:flex-shrink-0">
-        <SummaryPanel orderedTotals={orderedTotals} grandTotal={grandTotal} />
+      <div className="space-y-6 lg:w-80 lg:flex-shrink-0">
+        <ConfigurationPanel />
+        <SummaryPanel
+          orderedTotals={orderedTotals}
+          grandTotal={grandTotal}
+          exchangeRate={exchangeRateState}
+        />
       </div>
     </div>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <ExchangeRateProvider>
+      <HomePageContent />
+    </ExchangeRateProvider>
   );
 }

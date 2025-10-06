@@ -2,13 +2,27 @@
 
 import type { LevelTotal } from "@/lib/cost-calculation";
 import { currencyFormatter } from "@/lib/cost-calculation";
+import type { ExchangeRateState } from "@/contexts/ExchangeRateContext";
 
 interface SummaryPanelProps {
   orderedTotals: LevelTotal[];
   grandTotal: number;
+  exchangeRate: ExchangeRateState;
 }
 
-export function SummaryPanel({ orderedTotals, grandTotal }: SummaryPanelProps) {
+const exchangeRateFormatter = new Intl.NumberFormat("es-AR", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 4
+});
+
+export function SummaryPanel({
+  orderedTotals,
+  grandTotal,
+  exchangeRate
+}: SummaryPanelProps) {
+  const sourceLabel = exchangeRate.source === "bcra" ? "BCRA" : "Manual";
+  const rateLabel = `${exchangeRateFormatter.format(exchangeRate.rate)} ARS/USD`;
+
   return (
     <aside className="space-y-4 rounded-2xl border border-inta-blue bg-white/90 p-6 shadow-md">
       <div>
@@ -17,6 +31,17 @@ export function SummaryPanel({ orderedTotals, grandTotal }: SummaryPanelProps) {
           Visualiza el aporte parcial de cada nivel y el costo total estimado del
           servicio.
         </p>
+      </div>
+
+      <div className="space-y-1 rounded-lg bg-slate-50/80 p-3 text-xs text-slate-600">
+        <p>
+          TC aplicado: <span className="font-medium text-slate-800">{rateLabel}</span>
+          {" "}— Fuente: <span className="font-medium text-slate-800">{sourceLabel}</span>
+          {" "}— Fecha {exchangeRate.dateISO}
+        </p>
+        {exchangeRate.note ? (
+          <p className="text-slate-500">Observaciones: {exchangeRate.note}</p>
+        ) : null}
       </div>
 
       <ul className="space-y-3 text-sm text-slate-600">

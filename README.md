@@ -35,6 +35,12 @@ los supuestos a un archivo JSON para documentar la estimación.
    npm run lint
    ```
 
+5. Ejecuta la suite de pruebas
+
+   ```bash
+   npm test
+   ```
+
 ## Despliegue en Vercel
 
 Este proyecto está preparado para desplegarse directamente en Vercel. Configura
@@ -51,3 +57,15 @@ defecto:
 - Modifica las tasas sugeridas para los niveles porcentuales en `app/page.tsx`.
 - Puedes ampliar la lógica de cálculo en `lib/cost-calculation.ts` para incluir
   unidades adicionales, coeficientes u hojas de referencia externas.
+
+## Tipo de cambio y API del BCRA
+
+La normalización de moneda utiliza el tipo de cambio oficial minorista publicado
+por el Banco Central de la República Argentina. El endpoint oficial de la API
+de "Principales Variables" se declara como constante `BCRA_EXRATE_URL` en
+`contexts/ExchangeRateContext.tsx` y corresponde a la serie pública de
+estadísticas cambiarias. Puedes consultar la documentación en el sitio del BCRA:
+<https://www.bcra.gob.ar/PublicacionesEstadisticas/Principales_variables_datos.asp>.
+
+Cuando la consulta al BCRA no está disponible, la aplicación mantiene el valor
+manual cargado por la persona usuaria.

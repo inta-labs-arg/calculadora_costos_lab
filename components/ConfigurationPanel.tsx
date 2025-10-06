@@ -17,6 +17,7 @@ export function ConfigurationPanel() {
     fetchBcraRate,
     isFetching
   } = useExchangeRate();
+  const isAutomatic = state.source !== "manual";
   const [toast, setToast] = useState<string | null>(null);
 
   useEffect(() => {
@@ -65,6 +66,14 @@ export function ConfigurationPanel() {
   const manualRateValue = useMemo(() => manualState.rate.toString(), [manualState.rate]);
 
   const noteValue = manualState.note ?? "";
+
+  const sourceLabel =
+    state.source === "bcra" ? "BCRA" : state.source === "cache" ? "Cache local" : "Manual";
+
+  const sourceTooltip =
+    state.source === "bcra"
+      ? undefined
+      : "Se usó cache/valor manual por indisponibilidad del BCRA";
 
   return (
     <section className="relative space-y-4 rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-md">
@@ -132,7 +141,7 @@ export function ConfigurationPanel() {
           <input
             type="checkbox"
             className="h-5 w-5 accent-inta-blue"
-            checked={state.source === "bcra"}
+            checked={isAutomatic}
             onChange={handleToggle}
             disabled={isFetching}
           />
@@ -141,11 +150,12 @@ export function ConfigurationPanel() {
           <p className="text-xs text-slate-500">Consultando al BCRA…</p>
         ) : null}
         <p className="text-xs text-slate-500">
-          Fuente actual: <span className="font-medium text-slate-700">{state.source === "bcra" ? "BCRA" : "Manual"}</span>
-          {" "}· Fecha {state.dateISO}
-        </p>
-        <p className="text-xs text-slate-500">
-          Tipo de cambio aplicado: <span className="font-medium text-slate-700">{appliedRateLabel}</span>
+          TC aplicado (USD → ARS): <span className="font-medium text-slate-700">{appliedRateLabel}</span> — Fuente:
+          {" "}
+          <span className="font-medium text-slate-700" title={sourceTooltip ?? undefined}>
+            {sourceLabel}
+          </span>
+          {" "}— Fecha: <span className="font-medium text-slate-700">{state.dateISO}</span>
         </p>
       </div>
 

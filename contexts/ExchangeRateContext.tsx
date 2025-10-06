@@ -9,10 +9,9 @@ import {
   type ReactNode
 } from "react";
 
-export const BCRA_EXRATE_URL =
-  "https://api.bcra.gob.ar/estadisticas/v2/principalesvariables/7926";
+export const BCRA_EXRATE_URL = "/api/bcra/usd";
 
-type ExchangeRateSource = "manual" | "bcra";
+type ExchangeRateSource = "manual" | "bcra" | "cache";
 
 export interface ExchangeRateState {
   rate: number;
@@ -54,64 +53,6 @@ function normalizeRateValue(value: unknown): number {
   }
 
   return Number.NaN;
-}
-
-function extractLatestBcraEntry(data: unknown): { rate: number; dateISO: string } {
-  const maybeArray = Array.isArray(data)
-    ? data
-    : Array.isArray((data as { results?: unknown[] })?.results)
-      ? (data as { results?: unknown[] }).results
-      : Array.isArray((data as { Results?: unknown[] })?.Results)
-        ? (data as { Results?: unknown[] }).Results
-        : [];
-
-  if (!Array.isArray(maybeArray) || maybeArray.length === 0) {
-    throw new Error("La respuesta del BCRA no contiene datos disponibles.");
-  }
-
-  const normalized = maybeArray
-    .map((entry) => {
-      const rawDate =
-        (entry as { fecha?: string; Fecha?: string; date?: string; d?: string })
-          ?.fecha ??
-        (entry as { fecha?: string; Fecha?: string; date?: string; d?: string })
-          ?.Fecha ??
-        (entry as { fecha?: string; Fecha?: string; date?: string; d?: string })
-          ?.date ??
-        (entry as { fecha?: string; Fecha?: string; date?: string; d?: string })
-          ?.d;
-
-      const rawValue =
-        (entry as { valor?: unknown; Valor?: unknown; value?: unknown; v?: unknown })
-          ?.valor ??
-        (entry as { valor?: unknown; Valor?: unknown; value?: unknown; v?: unknown })
-          ?.Valor ??
-        (entry as { valor?: unknown; Valor?: unknown; value?: unknown; v?: unknown })
-          ?.value ??
-        (entry as { valor?: unknown; Valor?: unknown; value?: unknown; v?: unknown })
-          ?.v;
-
-      const parsedRate = normalizeRateValue(rawValue);
-      const parsedDate = rawDate ? new Date(rawDate) : undefined;
-
-      if (!parsedDate || Number.isNaN(parsedRate)) {
-        return null;
-      }
-
-      return {
-        rate: parsedRate,
-        dateISO: parsedDate.toISOString().slice(0, 10)
-      };
-    })
-    .filter((entry): entry is { rate: number; dateISO: string } => Boolean(entry));
-
-  if (normalized.length === 0) {
-    throw new Error("No se pudo interpretar el tipo de cambio del BCRA.");
-  }
-
-  normalized.sort((a, b) => (a.dateISO < b.dateISO ? 1 : -1));
-
-  return normalized[0];
 }
 
 const todayISO = new Date().toISOString().slice(0, 10);
@@ -182,20 +123,57 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
   const fetchBcraRate = useCallback(async () => {
     setIsFetching(true);
     try {
-      const response = await fetch(BCRA_EXRATE_URL);
+      const response = await fetch(BCRA_EXRATE_URL, {
+        headers: { Accept: "application/json" }
+      });
+      const contentType = response.headers.get("content-type") ?? "";
+
       if (!response.ok) {
-        throw new Error(
-          `Respuesta inesperada del BCRA: ${response.status} ${response.statusText}`
-        );
+        let errorMessage = `Respuesta inesperada del BCRA: ${response.status} ${response.statusText}`;
+        if (contentType.includes("application/json")) {
+          try {
+            const { message } = (await response.json()) as { message?: string };
+            if (message) {
+              errorMessage = message;
+            }
+          } catch (error) {
+            console.error("No fue posible parsear el error del endpoint /api/bcra/usd", error);
+          }
+        }
+        throw new Error(errorMessage);
       }
 
-      const payload = await response.json();
-      const { rate, dateISO } = extractLatestBcraEntry(payload);
+      if (!contentType.includes("application/json")) {
+        throw new Error("La respuesta del endpoint /api/bcra/usd no es JSON");
+      }
+
+      const payload = (await response.json()) as {
+        rate?: number;
+        dateISO?: string;
+        source?: ExchangeRateSource;
+      };
+
+      const normalizedRate = normalizeRateValue(payload.rate);
+      if (Number.isNaN(normalizedRate)) {
+        throw new Error("El endpoint /api/bcra/usd devolvió un tipo de cambio inválido");
+      }
+
+      const resolvedDate = payload.dateISO ? new Date(payload.dateISO) : null;
+      if (!resolvedDate || Number.isNaN(resolvedDate.getTime())) {
+        throw new Error("El endpoint /api/bcra/usd devolvió una fecha inválida");
+      }
+
+      const source: ExchangeRateSource =
+        payload.source === "cache"
+          ? "cache"
+          : payload.source === "manual"
+            ? "manual"
+            : "bcra";
 
       setState({
-        rate,
-        source: "bcra",
-        dateISO,
+        rate: normalizedRate,
+        source,
+        dateISO: resolvedDate.toISOString().slice(0, 10),
         note: manualState.note
       });
     } catch (error) {

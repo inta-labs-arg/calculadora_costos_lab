@@ -20,7 +20,16 @@ export function SummaryPanel({
   grandTotal,
   exchangeRate
 }: SummaryPanelProps) {
-  const sourceLabel = exchangeRate.source === "bcra" ? "BCRA" : "Manual";
+  const sourceLabel =
+    exchangeRate.source === "bcra"
+      ? "BCRA"
+      : exchangeRate.source === "cache"
+        ? "Cache local"
+        : "Manual";
+  const sourceTooltip =
+    exchangeRate.source === "bcra"
+      ? undefined
+      : "Se usó cache/valor manual por indisponibilidad del BCRA";
   const rateLabel = `${exchangeRateFormatter.format(exchangeRate.rate)} ARS/USD`;
 
   return (
@@ -36,7 +45,11 @@ export function SummaryPanel({
       <div className="space-y-1 rounded-lg bg-slate-50/80 p-3 text-xs text-slate-600">
         <p>
           TC aplicado: <span className="font-medium text-slate-800">{rateLabel}</span>
-          {" "}— Fuente: <span className="font-medium text-slate-800">{sourceLabel}</span>
+          {" "}— Fuente:
+          {" "}
+          <span className="font-medium text-slate-800" title={sourceTooltip ?? undefined}>
+            {sourceLabel}
+          </span>
           {" "}— Fecha {exchangeRate.dateISO}
         </p>
         {exchangeRate.note ? (

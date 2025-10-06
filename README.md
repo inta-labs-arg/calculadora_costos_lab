@@ -60,40 +60,33 @@ defecto:
 
 ## Tipo de cambio y API del BCRA
 
-La normalización de moneda utiliza el tipo de cambio oficial minorista publicado
-por el Banco Central de la República Argentina. El endpoint oficial de la API
-de "Principales Variables" se declara como constante `BCRA_EXRATE_URL` en
-`contexts/ExchangeRateContext.tsx` y corresponde a la serie pública de
-estadísticas cambiarias. Puedes consultar la documentación en el sitio del BCRA:
-<https://www.bcra.gob.ar/PublicacionesEstadisticas/Principales_variables_datos.asp>.
+La aplicación obtiene el tipo de cambio oficial minorista USD → ARS desde la
+API pública **BCRA – Estadísticas Cambiarias v1.0**
+(`<https://api.bcra.gob.ar/estadisticascambiarias/v1.0>`). El backend de Next.js
+expone un endpoint interno (`/api/bcra/usd`) que encapsula las llamadas a
+`/Cotizaciones` y normaliza la respuesta al contrato usado por la interfaz.
 
-### Por qué falla actualmente la consulta automática
+### Flujo de consulta
 
-El contexto `ExchangeRateContext` invoca al endpoint del BCRA con `fetch`
-directo desde el navegador (`fetch(BCRA_EXRATE_URL)`), sin cabeceras
-adicionales ni un proxy de servidor. El catálogo de APIs del BCRA exige que las
-llamadas incluyan una suscripción válida mediante la cabecera
-`Ocp-Apim-Subscription-Key` y únicamente habilita CORS para orígenes registrados
-en la cuenta de esa suscripción. Al no enviar la clave ni provenir de un origen
-habilitado, el navegador recibe un error de autenticación (HTTP 401/403) o una
-respuesta bloqueada por CORS, lo que dispara el mensaje de error en la
-interfaz: "No fue posible obtener el tipo de cambio oficial del BCRA".
+1. El cliente (`contexts/ExchangeRateContext.tsx`) solicita `/api/bcra/usd`.
+2. La función serverless aplica un timeout de 4 s mediante `AbortController` y
+   controla la caché (`s-maxage=3600`, `stale-while-revalidate=300`).
+3. Se consulta primero `/Cotizaciones?fecha=YYYY-MM-DD` usando la fecha actual
+   de Buenos Aires y, si es necesario, se retrocede hasta tres días para cubrir
+   fines de semana o feriados. Como último recurso se invoca `/Cotizaciones` sin
+   fecha para obtener el último dato disponible.
+4. Las respuestas válidas se almacenan en una caché LRU en memoria (60 minutos
+   de vigencia, retención de emergencia hasta 24 h). Si el BCRA está caído pero
+   existe un valor en caché, el endpoint responde con `source: "cache"` para que
+   la UI muestre el aviso correspondiente.
+5. Si no hay datos ni en el BCRA ni en caché, el endpoint devuelve `503
+   BCRA_UNAVAILABLE` y la aplicación conserva el tipo de cambio manual.
 
-### Datos necesarios para que funcione
+### SLA internos
 
-1. **Clave de suscripción de la API del BCRA** (`Ocp-Apim-Subscription-Key`).
-   Debe solicitarse desde el portal de desarrolladores del BCRA y configurarse
-   como variable de entorno segura en el proyecto (por ejemplo
-   `BCRA_SUBSCRIPTION_KEY`).
-2. **Origen autorizado en el portal del BCRA.** La URL desde la que se ejecuta
-   la aplicación debe estar registrada en la suscripción para superar las
-   validaciones de CORS del BCRA. Si se usa un backend o función serverless
-   (recomendado), el origen autorizado puede ser el del servidor y el frontend
-   consulta a ese backend.
-3. **Lógica para adjuntar la clave en la petición**. Puede implementarse un
-   endpoint interno (por ejemplo en `/api/bcra-exchange-rate`) que reciba la
-   solicitud desde el frontend, agregue la cabecera `Ocp-Apim-Subscription-Key`
-   con la variable de entorno y devuelva la respuesta normalizada.
-
-Cuando la consulta al BCRA no está disponible, la aplicación mantiene el valor
-manual cargado por la persona usuaria.
+- **Origen oficial**: BCRA – Estadísticas Cambiarias v1.0 (`/Cotizaciones`).
+- **Timeout**: 4 segundos por solicitud al BCRA.
+- **Caché de aplicación**: 60 minutos de validez (máximo 24 h en modo
+  contingencia).
+- **Encabezados HTTP**: `cache-control: public, s-maxage=3600,
+  stale-while-revalidate=300` y `retry-after: 300` ante indisponibilidad.

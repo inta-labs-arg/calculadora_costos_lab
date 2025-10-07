@@ -1,6 +1,6 @@
-import { defineConfig, type Config } from "drizzle-kit";
+import { defineConfig } from "drizzle-kit";
 
-const config: Config = {
+export default defineConfig({
   schema: "./src/db/schema.ts",
   out: "./drizzle",
   dialect: "postgresql",
@@ -8,6 +8,4 @@ const config: Config = {
     url: process.env.DATABASE_URL ?? ""
   },
   strict: true
-};
-
-export default defineConfig(config);
+});

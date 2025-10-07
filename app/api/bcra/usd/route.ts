@@ -1,6 +1,47 @@
 import { NextResponse } from "next/server";
 import { BcraUnavailableError, fetchUsdArsFromBcra } from "@/lib/bcra";
 
+const GENERIC_BCRA_ERROR = "No fue posible obtener la cotización USD del BCRA.";
+
+function normalizeErrorMessage(error: unknown): {
+  message: string;
+  details?: string;
+} {
+  if ((error as { name?: string }).name === "AbortError") {
+    const detail = "Se agotó el tiempo de espera consultando al BCRA";
+    return {
+      message: `${GENERIC_BCRA_ERROR} Motivo: ${detail}.`,
+      details: detail
+    };
+  }
+
+  const rawMessage =
+    error instanceof Error && typeof error.message === "string"
+      ? error.message.trim()
+      : "";
+
+  if (!rawMessage) {
+    return { message: `${GENERIC_BCRA_ERROR} Motivo: desconocido.` };
+  }
+
+  const sanitized = rawMessage.replace(/\.+$/, "");
+  const normalizedDetail = sanitized || rawMessage;
+  const lowerDetail = normalizedDetail.toLowerCase();
+  const lowerGeneric = GENERIC_BCRA_ERROR.toLowerCase();
+
+  if (lowerDetail.startsWith(lowerGeneric)) {
+    const finalMessage = normalizedDetail.endsWith(".")
+      ? normalizedDetail
+      : `${normalizedDetail}.`;
+    return { message: finalMessage, details: normalizedDetail };
+  }
+
+  return {
+    message: `${GENERIC_BCRA_ERROR} Motivo: ${normalizedDetail}.`,
+    details: normalizedDetail
+  };
+}
+
 export const runtime = "edge";
 
 export async function GET() {
@@ -17,11 +58,16 @@ export async function GET() {
       }
     });
   } catch (error) {
-    if (error instanceof BcraUnavailableError || (error as { name?: string }).name === "AbortError") {
+    if (
+      error instanceof BcraUnavailableError ||
+      (error as { name?: string }).name === "AbortError"
+    ) {
+      const { message, details } = normalizeErrorMessage(error);
       return new NextResponse(
         JSON.stringify({
           error: "BCRA_UNAVAILABLE",
-          message: "No fue posible obtener la cotización USD del BCRA."
+          message,
+          ...(details ? { details } : {})
         }),
         {
           status: 503,

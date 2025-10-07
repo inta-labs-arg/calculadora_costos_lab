@@ -196,12 +196,20 @@ export interface LevelTotal {
   name: string;
   subtotal: number;
   rate?: number;
-  breakdown?: {
-    id: SublevelKey | IndirectSublevelKey | string;
-    name: string;
-    subtotal: number;
-    rate?: number;
-  }[];
+  breakdown?: Array<
+    {
+      id: SublevelKey | IndirectSublevelKey | string;
+      name: string;
+      subtotal: number;
+      rate?: number;
+    } & {
+      breakdown?: {
+        id: string;
+        name: string;
+        subtotal: number;
+      }[];
+    }
+  >;
 }
 
 export interface CalculationOptions {
@@ -234,16 +242,54 @@ export function calculateLaborItemCost(item: LaborCostItem): number {
   return item.hours * item.rate;
 }
 
+export function calculateEquipmentItemDepreciation(
+  item: EquipmentCostItem
+): number {
+  if (item.usefulLifeDeterminations <= 0) {
+    return 0;
+  }
+
+  return item.purchasePrice / item.usefulLifeDeterminations;
+}
+
+export function calculateEquipmentItemCalibration(
+  item: EquipmentCostItem
+): number {
+  if (item.calibrationPeriodDeterminations <= 0) {
+    return 0;
+  }
+
+  return item.calibrationCost / item.calibrationPeriodDeterminations;
+}
+
 export function calculateEquipmentItemCost(item: EquipmentCostItem): number {
-  const depreciation =
-    item.usefulLifeDeterminations > 0
-      ? item.purchasePrice / item.usefulLifeDeterminations
-      : 0;
-  const calibrationAllocation =
-    item.calibrationPeriodDeterminations > 0
-      ? item.calibrationCost / item.calibrationPeriodDeterminations
-      : 0;
-  return depreciation + calibrationAllocation;
+  return (
+    calculateEquipmentItemDepreciation(item) +
+    calculateEquipmentItemCalibration(item)
+  );
+}
+
+export function calculateEquipmentSublevelTotals(
+  sublevel: EquipmentSublevelState
+): {
+  depreciation: number;
+  calibration: number;
+  total: number;
+} {
+  const depreciation = sublevel.items.reduce(
+    (acc, item) => acc + calculateEquipmentItemDepreciation(item),
+    0
+  );
+  const calibration = sublevel.items.reduce(
+    (acc, item) => acc + calculateEquipmentItemCalibration(item),
+    0
+  );
+
+  return {
+    depreciation,
+    calibration,
+    total: depreciation + calibration
+  };
 }
 
 export function calculateSharedResourceItemCost(
@@ -283,10 +329,7 @@ export function calculateSublevelSubtotal(
         0
       );
     case "equipamiento":
-      return sublevel.items.reduce(
-        (acc, item) => acc + calculateEquipmentItemCost(item),
-        0
-      );
+      return calculateEquipmentSublevelTotals(sublevel).total;
     default: {
       const exhaustiveCheck: never = sublevel;
       return exhaustiveCheck;
@@ -320,13 +363,38 @@ export function calculateDirectGroupLevel(
   options?: CalculationOptions
 ): {
   subtotal: number;
-  breakdown: { id: SublevelKey; name: string; subtotal: number }[];
+  breakdown: NonNullable<LevelTotal["breakdown"]>;
 } {
-  const breakdown = level.sublevels.map((sublevel) => ({
-    id: sublevel.id,
-    name: sublevel.name,
-    subtotal: calculateSublevelSubtotal(sublevel, options)
-  }));
+  const breakdown = level.sublevels.map((sublevel) => {
+    if (sublevel.type === "equipamiento") {
+      const { depreciation, calibration, total } =
+        calculateEquipmentSublevelTotals(sublevel);
+
+      return {
+        id: sublevel.id,
+        name: sublevel.name,
+        subtotal: total,
+        breakdown: [
+          {
+            id: `${sublevel.id}-depreciacion`,
+            name: "Depreciación por determinación (ARS)",
+            subtotal: depreciation
+          },
+          {
+            id: `${sublevel.id}-calibracion`,
+            name: "Calibración por determinación (ARS)",
+            subtotal: calibration
+          }
+        ]
+      };
+    }
+
+    return {
+      id: sublevel.id,
+      name: sublevel.name,
+      subtotal: calculateSublevelSubtotal(sublevel, options)
+    };
+  });
 
   const subtotal = breakdown.reduce((acc, item) => acc + item.subtotal, 0);
 

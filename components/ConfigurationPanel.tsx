@@ -48,9 +48,16 @@ export function ConfigurationPanel() {
         await fetchBcraRate();
       } catch (error) {
         console.error(error);
-        setToast(
-          "No fue posible obtener el tipo de cambio oficial del BCRA. Se mantiene el valor manual."
-        );
+        const fallback = "No fue posible obtener el tipo de cambio oficial del BCRA.";
+        const errorMessage =
+          error instanceof Error && typeof error.message === "string"
+            ? error.message.trim()
+            : "";
+        const displayMessage = errorMessage ? errorMessage : fallback;
+        const normalizedMessage = displayMessage.endsWith(".")
+          ? displayMessage
+          : `${displayMessage}.`;
+        setToast(`${normalizedMessage} Se mantiene el valor manual.`);
         event.target.checked = false;
       }
     } else {

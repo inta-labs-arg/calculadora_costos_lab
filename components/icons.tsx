@@ -1,6 +1,12 @@
 import { type SVGProps } from "react";
 
-export function PlusIcon(props: SVGProps<SVGSVGElement>) {
+type IconProps = SVGProps<SVGSVGElement> & { title?: string };
+
+function renderTitle(title?: string) {
+  return title ? <title>{title}</title> : null;
+}
+
+export function PlusIcon({ title, ...props }: IconProps) {
   return (
     <svg
       viewBox="0 0 20 20"
@@ -8,14 +14,16 @@ export function PlusIcon(props: SVGProps<SVGSVGElement>) {
       aria-hidden="true"
       {...props}
     >
+      {renderTitle(title)}
       <path d="M10.75 3a.75.75 0 0 0-1.5 0v6.25H3a.75.75 0 0 0 0 1.5h6.25V17a.75.75 0 0 0 1.5 0v-6.25H17a.75.75 0 0 0 0-1.5h-6.25z" />
     </svg>
   );
 }
 
-export function InfoIcon(props: SVGProps<SVGSVGElement>) {
+export function InfoIcon({ title, ...props }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor" {...props}>
+      {renderTitle(title)}
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -25,9 +33,10 @@ export function InfoIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function DownloadIcon(props: SVGProps<SVGSVGElement>) {
+export function DownloadIcon({ title, ...props }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor" {...props}>
+      {renderTitle(title)}
       <path
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -37,9 +46,10 @@ export function DownloadIcon(props: SVGProps<SVGSVGElement>) {
   );
 }
 
-export function ManualOverrideIcon(props: SVGProps<SVGSVGElement>) {
+export function ManualOverrideIcon({ title, ...props }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor" {...props}>
+      {renderTitle(title)}
       <path
         strokeLinecap="round"
         strokeLinejoin="round"

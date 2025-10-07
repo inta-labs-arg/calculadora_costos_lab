@@ -1,7 +1,29 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import type { LevelTotal } from "@/lib/cost-calculation";
+import { currencyFormatter } from "@/lib/cost-calculation";
+
+vi.mock("@/contexts/HourlyRatesContext", () => ({
+  useHourlyRates: () => ({
+    state: {
+      items: [],
+      lastSyncISO: "2024-01-01",
+      lastSyncType: "import"
+    },
+    items: [],
+    syncLabel: "Tabla local (2024-01-01 · importación)",
+    addRow: vi.fn(),
+    duplicateRow: vi.fn(),
+    updateRow: vi.fn(),
+    deleteRow: vi.fn(),
+    exportJson: vi.fn(),
+    exportCsv: vi.fn(),
+    beginImport: vi.fn(),
+    confirmImport: vi.fn(),
+    resetSync: vi.fn()
+  })
+}));
 
 describe("SummaryPanel", () => {
   it("renders the applied exchange rate information", () => {
@@ -42,5 +64,59 @@ describe("SummaryPanel", () => {
     expect(screen.getByText(/Fuente: BCRA/i)).toBeInTheDocument();
     expect(screen.getByText(/Fecha 2024-04-15/i)).toBeInTheDocument();
     expect(screen.getByText(/Observaciones: Cotización cierre/i)).toBeInTheDocument();
+  });
+
+  it("presenta la desagregación del equipamiento manteniendo el subtotal", () => {
+    const orderedTotals: LevelTotal[] = [
+      {
+        id: "nivel1",
+        name: "Nivel 1 · Costos Directos Unitarios",
+        subtotal: 1700,
+        breakdown: [
+          {
+            id: "insumosDirectos",
+            name: "Subnivel 1.1 · Insumos directos",
+            subtotal: 1200
+          },
+          {
+            id: "equipamientoEspecifico",
+            name: "Subnivel 1.3 · Equipamiento específico",
+            subtotal: 500,
+            breakdown: [
+              {
+                id: "equipamientoEspecifico-depreciacion",
+                name: "Depreciación por determinación (ARS)",
+                subtotal: 350
+              },
+              {
+                id: "equipamientoEspecifico-calibracion",
+                name: "Calibración por determinación (ARS)",
+                subtotal: 150
+              }
+            ]
+          }
+        ]
+      }
+    ];
+
+    const exchangeRate = {
+      rate: 800,
+      source: "manual" as const,
+      dateISO: "2024-05-01",
+      note: undefined
+    };
+
+    const { container } = render(
+      <SummaryPanel
+        orderedTotals={orderedTotals}
+        grandTotal={1700}
+        exchangeRate={exchangeRate}
+      />
+    );
+
+    expect(
+      screen.getByText(currencyFormatter.format(1700))
+    ).toBeInTheDocument();
+    expect(container.firstChild).toMatchSnapshot();
   });
 });

@@ -85,21 +85,35 @@ export function SummaryPanel({
               </span>
             </div>
             {level.breakdown && level.breakdown.length > 0 ? (
-              <ul className="space-y-1 rounded-lg bg-slate-50/80 p-3 text-xs text-slate-500">
+              <ul className="space-y-2 rounded-lg bg-slate-50/80 p-3 text-xs text-slate-500">
                 {level.breakdown.map((item) => (
-                  <li
-                    key={item.id}
-                    className="flex items-center justify-between gap-2"
-                  >
-                    <span>
-                      {item.name}
-                      {typeof item.rate === "number"
-                        ? ` · ${item.rate}%`
-                        : ""}
-                    </span>
-                    <span className="font-medium text-slate-700">
-                      {currencyFormatter.format(item.subtotal)}
-                    </span>
+                  <li key={item.id} className="space-y-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span>
+                        {item.name}
+                        {typeof item.rate === "number"
+                          ? ` · ${item.rate}%`
+                          : ""}
+                      </span>
+                      <span className="font-medium text-slate-700">
+                        {currencyFormatter.format(item.subtotal)}
+                      </span>
+                    </div>
+                    {item.breakdown && item.breakdown.length > 0 ? (
+                      <ul className="space-y-1 rounded-md bg-white/70 p-2 text-[11px] text-slate-500">
+                        {item.breakdown.map((detail) => (
+                          <li
+                            key={detail.id}
+                            className="flex items-center justify-between gap-2"
+                          >
+                            <span>{detail.name}</span>
+                            <span className="font-medium text-slate-600">
+                              {currencyFormatter.format(detail.subtotal)}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : null}
                   </li>
                 ))}
               </ul>

@@ -13,6 +13,7 @@ import {
   SupplySublevelState,
   SublevelState,
   calculateEquipmentItemCost,
+  calculateEquipmentSublevelTotals,
   calculateSublevelSubtotal,
   calculateSupplyItemCost,
   calculateLaborItemCost,
@@ -21,6 +22,7 @@ import {
 import { ManualOverrideIcon, PlusIcon } from "./icons";
 import { useExchangeRate } from "@/contexts/ExchangeRateContext";
 import { useHourlyRates } from "@/contexts/HourlyRatesContext";
+import { appConfig } from "@/lib/app-config";
 
 interface LevelOneCardProps {
   level: DirectLevelGroupState;
@@ -105,11 +107,36 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
   } = useExchangeRate();
   const breakdown = useMemo(
     () =>
-      level.sublevels.map((sublevel) => ({
-        id: sublevel.id,
-        name: sublevel.name,
-        subtotal: calculateSublevelSubtotal(sublevel, { exchangeRate })
-      })),
+      level.sublevels.map((sublevel) => {
+        if (sublevel.type === "equipamiento") {
+          const { depreciation, calibration, total } =
+            calculateEquipmentSublevelTotals(sublevel);
+
+          return {
+            id: sublevel.id,
+            name: sublevel.name,
+            subtotal: total,
+            breakdown: [
+              {
+                id: `${sublevel.id}-depreciacion`,
+                name: "Depreciación por determinación (ARS)",
+                subtotal: depreciation
+              },
+              {
+                id: `${sublevel.id}-calibracion`,
+                name: "Calibración por determinación (ARS)",
+                subtotal: calibration
+              }
+            ]
+          };
+        }
+
+        return {
+          id: sublevel.id,
+          name: sublevel.name,
+          subtotal: calculateSublevelSubtotal(sublevel, { exchangeRate })
+        };
+      }),
     [level, exchangeRate]
   );
 
@@ -190,9 +217,26 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
 
           <dl className="grid gap-2 text-sm text-sky-800 sm:grid-cols-2">
             {breakdown.map((item) => (
-              <div key={item.id} className="flex items-center justify-between gap-4">
-                <dt className="font-medium text-sky-900">{item.name}</dt>
-                <dd>{currencyFormatter.format(item.subtotal)}</dd>
+              <div key={item.id} className="space-y-1">
+                <div className="flex items-center justify-between gap-4">
+                  <dt className="font-medium text-sky-900">{item.name}</dt>
+                  <dd>{currencyFormatter.format(item.subtotal)}</dd>
+                </div>
+                {item.breakdown && item.breakdown.length > 0 ? (
+                  <ul className="space-y-1 rounded-lg bg-white/60 p-2 text-xs text-sky-600">
+                    {item.breakdown.map((detail) => (
+                      <li
+                        key={detail.id}
+                        className="flex items-center justify-between gap-3"
+                      >
+                        <span>{detail.name}</span>
+                        <span className="font-medium text-sky-700">
+                          {currencyFormatter.format(detail.subtotal)}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
               </div>
             ))}
           </dl>
@@ -827,10 +871,11 @@ function EquipmentSublevelSection({
   onChange,
   appearance
 }: SublevelSectionProps<EquipmentSublevelState>) {
-  const subtotal = useMemo(
-    () => calculateSublevelSubtotal(sublevel),
+  const totals = useMemo(
+    () => calculateEquipmentSublevelTotals(sublevel),
     [sublevel]
   );
+  const subtotal = totals.total;
   const [draft, setDraft] = useState({
     name: "",
     model: "",
@@ -918,6 +963,9 @@ function EquipmentSublevelSection({
     onChange({ ...sublevel, items: sublevel.items.filter((item) => item.id !== id) });
   };
 
+  const methodTooltip =
+    "Depreciación por determinación = (Costo de adquisición − Valor residual + Costos de instalación) / Vida útil (determinaciones).\nCalibración por determinación = Costo de calibración del período / Determinaciones del período.";
+
   return (
     <section
       className={`space-y-4 rounded-xl border p-4 ${appearance.container}`}
@@ -930,6 +978,22 @@ function EquipmentSublevelSection({
           <p className={`text-sm ${appearance.description}`}>
             {sublevel.description}
           </p>
+          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+            <span
+              className={`inline-flex items-center rounded-full border border-white/60 bg-white/80 px-3 py-1 font-medium ${appearance.header}`}
+              title={methodTooltip}
+            >
+              Método: Depreciación por servicios (unidades de análisis)
+            </span>
+            <a
+              href={appConfig.guides.equipmentDepreciationMethod}
+              target="_blank"
+              rel="noreferrer"
+              className={`inline-flex items-center gap-1 font-medium underline decoration-dotted underline-offset-4 transition ${appearance.header} hover:opacity-80`}
+            >
+              Ver guía
+            </a>
+          </div>
         </div>
         <span className="text-base font-semibold text-inta-green">
           {currencyFormatter.format(subtotal)}
@@ -1071,6 +1135,34 @@ function EquipmentSublevelSection({
             ))}
           </tbody>
         </table>
+      </div>
+
+      <div
+        className={`space-y-2 rounded-lg bg-white/70 p-4 text-sm ${appearance.description}`}
+      >
+        <p className={`font-semibold ${appearance.header}`}>
+          Detalle por determinación
+        </p>
+        <dl className="space-y-1">
+          <div className="flex items-center justify-between gap-4">
+            <dt>Depreciación por determinación (ARS)</dt>
+            <dd className="font-semibold text-slate-900">
+              {currencyFormatter.format(totals.depreciation)}
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <dt>Calibración por determinación (ARS)</dt>
+            <dd className="font-semibold text-slate-900">
+              {currencyFormatter.format(totals.calibration)}
+            </dd>
+          </div>
+          <div className="flex items-center justify-between gap-4">
+            <dt>Total equipo por determinación (ARS)</dt>
+            <dd className="font-semibold text-slate-900">
+              {currencyFormatter.format(subtotal)}
+            </dd>
+          </div>
+        </dl>
       </div>
 
       <div

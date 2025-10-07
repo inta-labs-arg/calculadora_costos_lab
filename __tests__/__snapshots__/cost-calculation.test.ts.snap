@@ -1,0 +1,28 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`equipamiento específico mantiene el subtotal del nivel directo e incluye la desagregación 1`] = `
+Array [
+  Object {
+    "id": "insumosDirectos",
+    "name": "Insumos",
+    "subtotal": 0,
+  },
+  Object {
+    "breakdown": Array [
+      Object {
+        "id": "equipamientoEspecifico-depreciacion",
+        "name": "Depreciación por determinación (ARS)",
+        "subtotal": 500,
+      },
+      Object {
+        "id": "equipamientoEspecifico-calibracion",
+        "name": "Calibración por determinación (ARS)",
+        "subtotal": 200,
+      },
+    ],
+    "id": "equipamientoEspecifico",
+    "name": "Equipamiento",
+    "subtotal": 700,
+  },
+]
+`;

@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  calculateLaborItemCost,
   calculateSupplyItemCost,
+  type LaborCostItem,
   type SupplyCostItem
 } from "@/lib/cost-calculation";
 
@@ -33,5 +35,21 @@ describe("calculateSupplyItemCost", () => {
     const total = calculateSupplyItemCost(item, { exchangeRate: 800 });
 
     expect(total).toBe(450);
+  });
+});
+
+describe("calculateLaborItemCost", () => {
+  it("multiplica las horas por la tarifa aplicable", () => {
+    const item: LaborCostItem = {
+      id: "lab-1",
+      role: "professional",
+      label: "Profesional investigador",
+      hours: 2.5,
+      rate: 12000,
+      profileCode: "professional",
+      isManualRate: false
+    };
+
+    expect(calculateLaborItemCost(item)).toBe(30000);
   });
 });

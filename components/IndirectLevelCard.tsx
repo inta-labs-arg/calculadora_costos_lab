@@ -218,6 +218,18 @@ interface SharedResourceSublevelSectionProps {
 
 const maintenanceSublevelId = "mantenimientoEquipamiento";
 
+const sharedSublevelInfo: Partial<
+  Record<SharedResourceSublevelState["id"], { title: string; ariaLabel?: string }>
+> = {
+  equipamientoMenor: {
+    title:
+      "Método lineal prorrateado entre las determinaciones mensuales del laboratorio (criterio guía INTA)."
+  },
+  infraestructura: {
+    title: "Energía, gas, agua, limpieza, administración, comunicaciones"
+  }
+};
+
 function SharedResourceSublevelSection({
   sublevel,
   onChange,
@@ -332,6 +344,7 @@ function SharedResourceSublevelSection({
   };
 
   const isMaintenanceSublevel = sublevel.id === maintenanceSublevelId;
+  const tooltip = sharedSublevelInfo[sublevel.id];
 
   return (
     <section
@@ -339,9 +352,18 @@ function SharedResourceSublevelSection({
     >
       <header className="space-y-1">
         <div className="flex items-center justify-between">
-          <h3 className={`text-lg font-semibold ${appearance.header}`}>
-            {sublevel.name}
-          </h3>
+          <div className="flex items-center gap-2">
+            <h3 className={`text-lg font-semibold ${appearance.header}`}>
+              {sublevel.name}
+            </h3>
+            {tooltip ? (
+              <InfoIcon
+                className={`h-4 w-4 ${appearance.header}`}
+                aria-label={tooltip.ariaLabel ?? tooltip.title}
+                title={tooltip.title}
+              />
+            ) : null}
+          </div>
           <span className="text-base font-semibold text-inta-green">
             {currencyFormatter.format(subtotal)}
           </span>

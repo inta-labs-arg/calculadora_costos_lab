@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import {
   IndirectLevelGroupState,
@@ -14,11 +14,12 @@ import {
   calculateSharedResourceItemCost,
   currencyFormatter
 } from "@/lib/cost-calculation";
-import { PlusIcon } from "./icons";
+import { ManualOverrideIcon, PlusIcon } from "./icons";
 
 interface IndirectLevelCardProps {
   level: IndirectLevelGroupState;
   onSublevelChange: (sublevel: IndirectSublevelState) => void;
+  globalDeterminations: number;
 }
 
 const sharedResourceSchema = z.object({
@@ -92,9 +93,17 @@ const indirectSublevelAppearances: SublevelAppearance[] = [
   }
 ];
 
+const levelTwoSublevels = new Set<IndirectSublevelState["id"]>([
+  "materialesNoDescartables",
+  "equipamientoMenor",
+  "mantenimientoEquipamiento",
+  "infraestructura"
+]);
+
 export function IndirectLevelCard({
   level,
-  onSublevelChange
+  onSublevelChange,
+  globalDeterminations
 }: IndirectLevelCardProps) {
   const breakdown = useMemo(
     () =>
@@ -138,6 +147,10 @@ export function IndirectLevelCard({
               index % indirectSublevelAppearances.length
             ];
 
+          const useGlobalDeterminations =
+            level.id === "serviciosGenerales" &&
+            levelTwoSublevels.has(sublevel.id);
+
           if (sublevel.type === "shared-resource") {
             return (
               <SharedResourceSublevelSection
@@ -145,6 +158,8 @@ export function IndirectLevelCard({
                 sublevel={sublevel}
                 onChange={onSublevelChange}
                 appearance={appearance}
+                globalDeterminations={globalDeterminations}
+                useGlobalDeterminations={useGlobalDeterminations}
               />
             );
           }
@@ -155,6 +170,8 @@ export function IndirectLevelCard({
               sublevel={sublevel}
               onChange={onSublevelChange}
               appearance={appearance}
+              globalDeterminations={globalDeterminations}
+              useGlobalDeterminations={useGlobalDeterminations}
             />
           );
         })}
@@ -168,6 +185,14 @@ export function IndirectLevelCard({
               {currencyFormatter.format(total)}
             </span>
           </header>
+
+          {level.id === "serviciosGenerales" ? (
+            <p className="text-sm text-emerald-800">
+              Base global de prorrateo (DM): {globalDeterminations}
+              {" "}
+              determinaciones/mes
+            </p>
+          ) : null}
 
           <dl className="grid gap-2 text-sm text-emerald-800 sm:grid-cols-2">
             {breakdown.map((item) => (
@@ -187,12 +212,16 @@ interface SharedResourceSublevelSectionProps {
   sublevel: SharedResourceSublevelState;
   onChange: (updated: SharedResourceSublevelState) => void;
   appearance: SublevelAppearance;
+  globalDeterminations: number;
+  useGlobalDeterminations: boolean;
 }
 
 function SharedResourceSublevelSection({
   sublevel,
   onChange,
-  appearance
+  appearance,
+  globalDeterminations,
+  useGlobalDeterminations
 }: SharedResourceSublevelSectionProps) {
   const subtotal = useMemo(
     () => calculateIndirectSublevelSubtotal(sublevel),
@@ -201,9 +230,22 @@ function SharedResourceSublevelSection({
   const [draft, setDraft] = useState({
     concept: "",
     monthlyCost: "",
-    determinations: ""
+    determinations: useGlobalDeterminations
+      ? globalDeterminations.toString()
+      : ""
   });
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!useGlobalDeterminations) {
+      return;
+    }
+
+    setDraft((prev) => ({
+      ...prev,
+      determinations: globalDeterminations.toString()
+    }));
+  }, [globalDeterminations, useGlobalDeterminations]);
 
   const handleAdd = () => {
     setError(null);
@@ -226,11 +268,20 @@ function SharedResourceSublevelSection({
 
     const newItem: SharedResourceCostItem = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      ...parsed.data
+      ...parsed.data,
+      isCustomDeterminations: useGlobalDeterminations
+        ? parsed.data.determinations !== globalDeterminations
+        : undefined
     };
 
     onChange({ ...sublevel, items: [...sublevel.items, newItem] });
-    setDraft({ concept: "", monthlyCost: "", determinations: "" });
+    setDraft({
+      concept: "",
+      monthlyCost: "",
+      determinations: useGlobalDeterminations
+        ? globalDeterminations.toString()
+        : ""
+    });
   };
 
   const handleFieldChange = (
@@ -238,14 +289,36 @@ function SharedResourceSublevelSection({
     field: keyof SharedResourceCostItem,
     value: string
   ) => {
-    const updated = sublevel.items.map((item) =>
-      item.id === id
-        ? {
-            ...item,
-            [field]: field === "concept" ? value : Number(value)
-          }
-        : item
-    );
+    const updated = sublevel.items.map((item) => {
+      if (item.id !== id) {
+        return item;
+      }
+
+      if (field === "concept") {
+        return { ...item, concept: value };
+      }
+
+      const numericValue = Number(value);
+
+      if (Number.isNaN(numericValue) || numericValue <= 0) {
+        return item;
+      }
+
+      if (field === "determinations") {
+        return {
+          ...item,
+          determinations: numericValue,
+          isCustomDeterminations: useGlobalDeterminations
+            ? numericValue !== globalDeterminations
+            : undefined
+        };
+      }
+
+      return {
+        ...item,
+        [field]: numericValue
+      };
+    });
     onChange({ ...sublevel, items: updated });
   };
 
@@ -332,20 +405,29 @@ function SharedResourceSublevelSection({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step="1"
-                    value={item.determinations}
-                    onChange={(event) =>
-                      handleFieldChange(
-                        item.id,
-                        "determinations",
-                        event.target.value
-                      )
-                    }
-                    className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      step="1"
+                      value={item.determinations}
+                      onChange={(event) =>
+                        handleFieldChange(
+                          item.id,
+                          "determinations",
+                          event.target.value
+                        )
+                      }
+                      className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                    />
+                    {useGlobalDeterminations && item.isCustomDeterminations ? (
+                      <ManualOverrideIcon
+                        className="h-4 w-4 text-amber-500"
+                        aria-label="Valor personalizado"
+                        title="Valor personalizado"
+                      />
+                    ) : null}
+                  </div>
                 </td>
                 <td className="px-3 py-2 font-medium text-slate-700">
                   {currencyFormatter.format(
@@ -402,7 +484,7 @@ function SharedResourceSublevelSection({
           <span>Determinaciones mensuales</span>
           <input
             type="number"
-            min={0}
+            min={1}
             step="1"
             value={draft.determinations}
             onChange={(event) =>
@@ -433,12 +515,16 @@ interface IndirectEquipmentSectionProps {
   sublevel: IndirectEquipmentSublevelState;
   onChange: (updated: IndirectEquipmentSublevelState) => void;
   appearance: SublevelAppearance;
+  globalDeterminations: number;
+  useGlobalDeterminations: boolean;
 }
 
 function IndirectEquipmentSublevelSection({
   sublevel,
   onChange,
-  appearance
+  appearance,
+  globalDeterminations,
+  useGlobalDeterminations
 }: IndirectEquipmentSectionProps) {
   const subtotal = useMemo(
     () => calculateIndirectSublevelSubtotal(sublevel),
@@ -448,9 +534,22 @@ function IndirectEquipmentSublevelSection({
     name: "",
     purchasePrice: "",
     usefulLifeMonths: "",
-    determinations: ""
+    determinations: useGlobalDeterminations
+      ? globalDeterminations.toString()
+      : ""
   });
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!useGlobalDeterminations) {
+      return;
+    }
+
+    setDraft((prev) => ({
+      ...prev,
+      determinations: globalDeterminations.toString()
+    }));
+  }, [globalDeterminations, useGlobalDeterminations]);
 
   const handleAdd = () => {
     setError(null);
@@ -478,11 +577,21 @@ function IndirectEquipmentSublevelSection({
 
     const newItem: IndirectEquipmentItem = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      ...parsed.data
+      ...parsed.data,
+      isCustomDeterminations: useGlobalDeterminations
+        ? parsed.data.determinations !== globalDeterminations
+        : undefined
     };
 
     onChange({ ...sublevel, items: [...sublevel.items, newItem] });
-    setDraft({ name: "", purchasePrice: "", usefulLifeMonths: "", determinations: "" });
+    setDraft({
+      name: "",
+      purchasePrice: "",
+      usefulLifeMonths: "",
+      determinations: useGlobalDeterminations
+        ? globalDeterminations.toString()
+        : ""
+    });
   };
 
   const handleFieldChange = (
@@ -490,14 +599,36 @@ function IndirectEquipmentSublevelSection({
     field: keyof IndirectEquipmentItem,
     value: string
   ) => {
-    const updated = sublevel.items.map((item) =>
-      item.id === id
-        ? {
-            ...item,
-            [field]: field === "name" ? value : Number(value)
-          }
-        : item
-    );
+    const updated = sublevel.items.map((item) => {
+      if (item.id !== id) {
+        return item;
+      }
+
+      if (field === "name") {
+        return { ...item, name: value };
+      }
+
+      const numericValue = Number(value);
+
+      if (Number.isNaN(numericValue) || numericValue <= 0) {
+        return item;
+      }
+
+      if (field === "determinations") {
+        return {
+          ...item,
+          determinations: numericValue,
+          isCustomDeterminations: useGlobalDeterminations
+            ? numericValue !== globalDeterminations
+            : undefined
+        };
+      }
+
+      return {
+        ...item,
+        [field]: numericValue
+      };
+    });
     onChange({ ...sublevel, items: updated });
   };
 
@@ -593,7 +724,7 @@ function IndirectEquipmentSublevelSection({
                 <td className="px-3 py-2">
                   <input
                     type="number"
-                    min={0}
+                    min={1}
                     step="1"
                     value={item.usefulLifeMonths}
                     onChange={(event) =>
@@ -607,20 +738,29 @@ function IndirectEquipmentSublevelSection({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step="1"
-                    value={item.determinations}
-                    onChange={(event) =>
-                      handleFieldChange(
-                        item.id,
-                        "determinations",
-                        event.target.value
-                      )
-                    }
-                    className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      min={1}
+                      step="1"
+                      value={item.determinations}
+                      onChange={(event) =>
+                        handleFieldChange(
+                          item.id,
+                          "determinations",
+                          event.target.value
+                        )
+                      }
+                      className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                    />
+                    {useGlobalDeterminations && item.isCustomDeterminations ? (
+                      <ManualOverrideIcon
+                        className="h-4 w-4 text-amber-500"
+                        aria-label="Valor personalizado"
+                        title="Valor personalizado"
+                      />
+                    ) : null}
+                  </div>
                 </td>
                 <td className="px-3 py-2 font-medium text-slate-700">
                   {currencyFormatter.format(
@@ -696,7 +836,7 @@ function IndirectEquipmentSublevelSection({
           <span>Determinaciones mensuales</span>
           <input
             type="number"
-            min={0}
+            min={1}
             step="1"
             value={draft.determinations}
             onChange={(event) =>

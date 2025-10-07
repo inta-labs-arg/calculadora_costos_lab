@@ -107,6 +107,7 @@ export interface SharedResourceCostItem {
   concept: string;
   monthlyCost: number;
   determinations: number;
+  isCustomDeterminations?: boolean;
 }
 
 export interface SharedResourceSublevelState {
@@ -129,6 +130,7 @@ export interface IndirectEquipmentItem {
   purchasePrice: number;
   usefulLifeMonths: number;
   determinations: number;
+  isCustomDeterminations?: boolean;
 }
 
 export interface IndirectEquipmentSublevelState {

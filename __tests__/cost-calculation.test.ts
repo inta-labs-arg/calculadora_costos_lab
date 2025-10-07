@@ -6,11 +6,13 @@ import {
   calculateEquipmentItemDepreciation,
   calculateEquipmentSublevelTotals,
   calculateLaborItemCost,
+  calculateSharedResourceItemCost,
   calculateSupplyItemCost,
   type DirectLevelGroupState,
   type EquipmentCostItem,
   type EquipmentSublevelState,
   type LaborCostItem,
+  type SharedResourceCostItem,
   type SupplyCostItem
 } from "@/lib/cost-calculation";
 
@@ -59,6 +61,20 @@ describe("calculateLaborItemCost", () => {
     };
 
     expect(calculateLaborItemCost(item)).toBe(30000);
+  });
+});
+
+describe("calculateSharedResourceItemCost", () => {
+  it("prorratea el costo mensual usando las determinaciones mensuales", () => {
+    const item: SharedResourceCostItem = {
+      id: "sr-1",
+      concept: "Servicio de limpieza",
+      monthlyCost: 50000,
+      determinations: 125,
+      isCustomDeterminations: false
+    };
+
+    expect(calculateSharedResourceItemCost(item)).toBeCloseTo(400);
   });
 });
 

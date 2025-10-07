@@ -195,6 +195,7 @@ const initialLevels: LevelState[] = [
 
 function HomePageContent() {
   const [levels, setLevels] = useState<LevelState[]>(initialLevels);
+  const [globalDeterminations, setGlobalDeterminations] = useState<number>(100);
   const {
     state: exchangeRateState
   } = useExchangeRate();
@@ -240,6 +241,62 @@ function HomePageContent() {
             sublevel.id === updatedSublevel.id ? updatedSublevel : sublevel
           )
         };
+      })
+    );
+  };
+
+  const handleGlobalDeterminationsChange = (value: number) => {
+    setGlobalDeterminations(value);
+    setLevels((prev) =>
+      prev.map((level) => {
+        if (
+          level.id !== "serviciosGenerales" ||
+          level.type !== "indirect-group"
+        ) {
+          return level;
+        }
+
+        return {
+          ...level,
+          sublevels: level.sublevels.map((sublevel) => {
+            if (
+              sublevel.id !== "materialesNoDescartables" &&
+              sublevel.id !== "equipamientoMenor" &&
+              sublevel.id !== "mantenimientoEquipamiento" &&
+              sublevel.id !== "infraestructura"
+            ) {
+              return sublevel;
+            }
+
+            if (sublevel.type === "shared-resource") {
+              return {
+                ...sublevel,
+                items: sublevel.items.map((item) =>
+                  item.isCustomDeterminations
+                    ? item
+                    : {
+                        ...item,
+                        determinations: value,
+                        isCustomDeterminations: false
+                      }
+                )
+              } satisfies IndirectSublevelState;
+            }
+
+            return {
+              ...sublevel,
+              items: sublevel.items.map((item) =>
+                item.isCustomDeterminations
+                  ? item
+                  : {
+                      ...item,
+                      determinations: value,
+                      isCustomDeterminations: false
+                    }
+              )
+            } satisfies IndirectSublevelState;
+          })
+        } satisfies typeof level;
       })
     );
   };
@@ -360,6 +417,7 @@ function HomePageContent() {
                 onSublevelChange={(sublevel) =>
                   handleIndirectSublevelChange(level.id, sublevel)
                 }
+                globalDeterminations={globalDeterminations}
               />
             );
           }
@@ -450,7 +508,10 @@ function HomePageContent() {
           </nav>
 
           <div id="configuracion" className="scroll-mt-24">
-            <ConfigurationPanel />
+            <ConfigurationPanel
+              globalDeterminations={globalDeterminations}
+              onGlobalDeterminationsChange={handleGlobalDeterminationsChange}
+            />
           </div>
           <div id="resumen" className="scroll-mt-24">
             <SummaryPanel

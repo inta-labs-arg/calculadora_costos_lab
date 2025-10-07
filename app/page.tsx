@@ -333,12 +333,13 @@ function HomePageContent() {
   };
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10 lg:flex-row">
-      <div className="flex-1 space-y-6">
-        <IntroPanel onExport={handleExport} />
+    <div className="mx-auto max-w-6xl space-y-12 px-4 py-10">
+      <IntroPanel onExport={handleExport} />
 
-        <div className="space-y-6">
-          {levels.map((level, index) => {
+      <div className="flex flex-col gap-8 lg:flex-row">
+        <div className="flex-1 space-y-6">
+          <div id="niveles" className="space-y-6 scroll-mt-24">
+            {levels.map((level, index) => {
           if (level.type === "direct-group") {
             return (
               <LevelOneCard
@@ -402,18 +403,67 @@ function HomePageContent() {
                 currentTotals={totals}
               />
             );
-          })}
+            })}
+          </div>
         </div>
+
+        <aside className="space-y-6 lg:w-80 lg:flex-shrink-0">
+          <nav
+            aria-label="Navegación rápida"
+            className="rounded-2xl border border-slate-200 bg-white/95 p-5 text-sm shadow-md"
+          >
+            <h2 className="text-base font-semibold text-slate-900">Atajos</h2>
+            <ul className="mt-3 space-y-2 text-slate-600">
+              <li>
+                <a
+                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-slate-100 hover:text-slate-900"
+                  href="#niveles"
+                >
+                  Niveles de cálculo
+                </a>
+              </li>
+              <li>
+                <a
+                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-slate-100 hover:text-slate-900"
+                  href="#configuracion"
+                >
+                  Configuración
+                </a>
+              </li>
+              <li>
+                <a
+                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-slate-100 hover:text-slate-900"
+                  href="#resumen"
+                >
+                  Resumen económico
+                </a>
+              </li>
+              <li>
+                <a
+                  className="inline-flex items-center gap-2 rounded-lg px-3 py-2 transition hover:bg-slate-100 hover:text-slate-900"
+                  href="#gestor-horas"
+                >
+                  Gestor de horas INTA
+                </a>
+              </li>
+            </ul>
+          </nav>
+
+          <div id="configuracion" className="scroll-mt-24">
+            <ConfigurationPanel />
+          </div>
+          <div id="resumen" className="scroll-mt-24">
+            <SummaryPanel
+              orderedTotals={orderedTotals}
+              grandTotal={grandTotal}
+              exchangeRate={exchangeRateState}
+            />
+          </div>
+        </aside>
       </div>
 
-      <div className="space-y-6 lg:w-80 lg:flex-shrink-0">
-        <ConfigurationPanel />
+      <div id="gestor-horas" className="scroll-mt-24">
         <HourlyRatesPanel />
-        <SummaryPanel
-          orderedTotals={orderedTotals}
-          grandTotal={grandTotal}
-          exchangeRate={exchangeRateState}
-        />
       </div>
     </div>
   );

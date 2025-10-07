@@ -59,6 +59,8 @@ export interface LaborCostItem {
   label: string;
   hours: number;
   rate: number;
+  profileCode?: string | null;
+  isManualRate?: boolean;
 }
 
 export interface EquipmentCostItem {

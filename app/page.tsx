@@ -8,6 +8,7 @@ import { PercentageLevelCard } from "@/components/PercentageLevelCard";
 import { SequentialPercentageLevelCard } from "@/components/SequentialPercentageLevelCard";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import { ConfigurationPanel } from "@/components/ConfigurationPanel";
+import { HourlyRatesPanel } from "@/components/HourlyRatesPanel";
 import type {
   LevelKey,
   LevelState,
@@ -21,6 +22,7 @@ import {
   ExchangeRateProvider,
   useExchangeRate
 } from "@/contexts/ExchangeRateContext";
+import { HourlyRatesProvider } from "@/contexts/HourlyRatesContext";
 
 const initialLevels: LevelState[] = [
   {
@@ -50,28 +52,36 @@ const initialLevels: LevelState[] = [
             role: "professional",
             label: "Profesional investigador",
             hours: 0,
-            rate: 0
+            rate: 0,
+            profileCode: "professional",
+            isManualRate: false
           },
           {
             id: "technician",
             role: "technician",
             label: "Técnico",
             hours: 0,
-            rate: 0
+            rate: 0,
+            profileCode: "technician",
+            isManualRate: false
           },
           {
             id: "support",
             role: "support",
             label: "Personal de apoyo",
             hours: 0,
-            rate: 0
+            rate: 0,
+            profileCode: "support",
+            isManualRate: false
           },
           {
             id: "intern",
             role: "intern",
             label: "Becario",
             hours: 0,
-            rate: 0
+            rate: 0,
+            profileCode: "intern",
+            isManualRate: false
           }
         ]
       },
@@ -398,6 +408,7 @@ function HomePageContent() {
 
       <div className="space-y-6 lg:w-80 lg:flex-shrink-0">
         <ConfigurationPanel />
+        <HourlyRatesPanel />
         <SummaryPanel
           orderedTotals={orderedTotals}
           grandTotal={grandTotal}
@@ -410,8 +421,10 @@ function HomePageContent() {
 
 export default function HomePage() {
   return (
-    <ExchangeRateProvider>
-      <HomePageContent />
-    </ExchangeRateProvider>
+    <HourlyRatesProvider>
+      <ExchangeRateProvider>
+        <HomePageContent />
+      </ExchangeRateProvider>
+    </HourlyRatesProvider>
   );
 }

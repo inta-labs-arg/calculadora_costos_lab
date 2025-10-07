@@ -36,3 +36,15 @@ export function DownloadIcon(props: SVGProps<SVGSVGElement>) {
     </svg>
   );
 }
+
+export function ManualOverrideIcon(props: SVGProps<SVGSVGElement>) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" strokeWidth="1.5" stroke="currentColor" {...props}>
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M16.862 4.487a2.11 2.11 0 1 1 2.984 2.984L8.999 18.318 5.25 19.5l1.182-3.75z"
+      />
+    </svg>
+  );
+}

@@ -3,6 +3,7 @@
 import type { LevelTotal } from "@/lib/cost-calculation";
 import { currencyFormatter } from "@/lib/cost-calculation";
 import type { ExchangeRateState } from "@/contexts/ExchangeRateContext";
+import { useHourlyRates } from "@/contexts/HourlyRatesContext";
 
 interface SummaryPanelProps {
   orderedTotals: LevelTotal[];
@@ -20,6 +21,7 @@ export function SummaryPanel({
   grandTotal,
   exchangeRate
 }: SummaryPanelProps) {
+  const { state: hourlyRateState } = useHourlyRates();
   const sourceLabel =
     exchangeRate.source === "bcra"
       ? "BCRA"
@@ -31,6 +33,11 @@ export function SummaryPanel({
       ? undefined
       : "Se usó cache/valor manual por indisponibilidad del BCRA";
   const rateLabel = `${exchangeRateFormatter.format(exchangeRate.rate)} ARS/USD`;
+  const hourlySyncLabel = hourlyRateState.lastSyncISO
+    ? `Tabla local (${hourlyRateState.lastSyncISO} · ${
+        hourlyRateState.lastSyncType === "import" ? "importación" : "exportación"
+      })`
+    : "Tabla local (sin exportación/importación)";
 
   return (
     <aside className="space-y-4 rounded-2xl border border-inta-blue bg-white/90 p-6 shadow-md">
@@ -55,6 +62,10 @@ export function SummaryPanel({
         {exchangeRate.note ? (
           <p className="text-slate-500">Observaciones: {exchangeRate.note}</p>
         ) : null}
+        <p>
+          Fuente de valor hora: {" "}
+          <span className="font-medium text-slate-800">{hourlySyncLabel}</span>
+        </p>
       </div>
 
       <ul className="space-y-3 text-sm text-slate-600">

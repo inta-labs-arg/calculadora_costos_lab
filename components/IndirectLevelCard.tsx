@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import {
   IndirectLevelGroupState,
@@ -15,12 +15,13 @@ import {
   currencyFormatter,
   createInfrastructureDefaultItems
 } from "@/lib/cost-calculation";
-import { InfoIcon, ManualOverrideIcon, PlusIcon } from "./icons";
+import { InfoIcon, PlusIcon } from "./icons";
 
 interface IndirectLevelCardProps {
   level: IndirectLevelGroupState;
   onSublevelChange: (sublevel: IndirectSublevelState) => void;
   globalDeterminations: number;
+  onGlobalDeterminationsChange?: (value: number) => void;
 }
 
 const sharedResourceSchema = z.object({
@@ -104,7 +105,8 @@ const levelTwoSublevels = new Set<IndirectSublevelState["id"]>([
 export function IndirectLevelCard({
   level,
   onSublevelChange,
-  globalDeterminations
+  globalDeterminations,
+  onGlobalDeterminationsChange
 }: IndirectLevelCardProps) {
   const breakdown = useMemo(
     () =>
@@ -120,6 +122,49 @@ export function IndirectLevelCard({
     () => breakdown.reduce((acc, item) => acc + item.subtotal, 0),
     [breakdown]
   );
+
+  const isLevelTwoGroup = level.id === "serviciosGenerales";
+  const [determinationsInput, setDeterminationsInput] = useState(
+    globalDeterminations.toString()
+  );
+  const [determinationsError, setDeterminationsError] = useState<string | null>(
+    null
+  );
+
+  useEffect(() => {
+    setDeterminationsInput(globalDeterminations.toString());
+  }, [globalDeterminations]);
+
+  const handleDeterminationsChange = (
+    event: ChangeEvent<HTMLInputElement>
+  ) => {
+    const nextValue = event.target.value;
+    setDeterminationsInput(nextValue);
+
+    if (!isLevelTwoGroup || !onGlobalDeterminationsChange) {
+      return;
+    }
+
+    if (nextValue.trim() === "") {
+      setDeterminationsError("Ingresa las determinaciones mensuales");
+      return;
+    }
+
+    const numericValue = Number(nextValue);
+
+    if (Number.isNaN(numericValue) || !Number.isInteger(numericValue)) {
+      setDeterminationsError("Debe ser un número entero");
+      return;
+    }
+
+    if (numericValue <= 0) {
+      setDeterminationsError("Debe ser mayor a cero");
+      return;
+    }
+
+    setDeterminationsError(null);
+    onGlobalDeterminationsChange(numericValue);
+  };
 
   return (
     <section className="space-y-6 rounded-2xl border border-emerald-200 bg-gradient-to-br from-emerald-50 via-white to-lime-100 p-6 shadow-sm">
@@ -140,6 +185,42 @@ export function IndirectLevelCard({
           ))}
         </ul>
       </header>
+
+      {isLevelTwoGroup ? (
+        <section className="space-y-3 rounded-2xl border border-emerald-200 bg-white/85 p-4">
+          <header className="space-y-1">
+            <h3 className="text-base font-semibold text-emerald-900">
+              Determinaciones mensuales del laboratorio (DM)
+            </h3>
+            <p className="text-sm text-emerald-800">
+              Este valor funciona como base de prorrateo para los subniveles 2.1
+              a 2.4 y se utiliza para calcular los costos unitarios indirectos.
+            </p>
+          </header>
+          <label className="flex flex-col gap-1 sm:max-w-xs">
+            <span className="text-sm font-medium text-emerald-900">
+              Cantidad de determinaciones mensuales
+            </span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={determinationsInput}
+              onChange={handleDeterminationsChange}
+              className="rounded-md border border-emerald-200 px-3 py-2 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+            />
+            {determinationsError ? (
+              <span className="text-xs text-rose-600">
+                {determinationsError}
+              </span>
+            ) : (
+              <span className="text-xs text-emerald-700">
+                Ingresá un número entero positivo de determinaciones mensuales.
+              </span>
+            )}
+          </label>
+        </section>
+      ) : null}
 
       <div className="space-y-8">
         {level.sublevels.map((sublevel, index) => {
@@ -290,28 +371,19 @@ function SharedResourceSublevelSection({
       globalDeterminations > 0 ? globalDeterminations : 0;
 
     const shouldUpdate = sublevel.items.some(
-      (item) =>
-        item.isFixed &&
-        !item.isCustomDeterminations &&
-        item.determinations !== normalizedDeterminations
+      (item) => item.determinations !== normalizedDeterminations
     );
 
     if (!shouldUpdate) {
       return;
     }
 
-    const updatedItems = sublevel.items.map((item) => {
-      if (!item.isFixed || item.isCustomDeterminations) {
-        return item;
-      }
-
-      return {
-        ...item,
-        determinations: normalizedDeterminations,
-        isCustomDeterminations:
-          normalizedDeterminations > 0 ? false : item.isCustomDeterminations
-      };
-    });
+    const updatedItems = sublevel.items.map((item) => ({
+      ...item,
+      determinations: normalizedDeterminations,
+      isCustomDeterminations:
+        normalizedDeterminations > 0 ? false : undefined
+    }));
 
     onChange({ ...sublevel, items: updatedItems });
   }, [
@@ -324,15 +396,35 @@ function SharedResourceSublevelSection({
   const handleAdd = () => {
     setError(null);
 
-    if (draft.monthlyCost === "" || draft.determinations === "") {
+    if (draft.monthlyCost === "") {
+      setError(
+        useGlobalDeterminations
+          ? "Completa el costo mensual para agregar el concepto"
+          : "Completa el costo mensual y las determinaciones"
+      );
+      return;
+    }
+
+    if (!useGlobalDeterminations && draft.determinations === "") {
       setError("Completa el costo mensual y las determinaciones");
+      return;
+    }
+
+    const determinationsValue = useGlobalDeterminations
+      ? globalDeterminations
+      : Number(draft.determinations);
+
+    if (useGlobalDeterminations && determinationsValue <= 0) {
+      setError(
+        "Definí la base global de prorrateo (DM) antes de cargar conceptos"
+      );
       return;
     }
 
     const parsed = sharedResourceSchema.safeParse({
       concept: draft.concept.trim(),
       monthlyCost: Number(draft.monthlyCost),
-      determinations: Number(draft.determinations)
+      determinations: determinationsValue
     });
 
     if (!parsed.success) {
@@ -342,10 +434,7 @@ function SharedResourceSublevelSection({
 
     const newItem: SharedResourceCostItem = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      ...parsed.data,
-      isCustomDeterminations: useGlobalDeterminations
-        ? parsed.data.determinations !== globalDeterminations
-        : undefined
+      ...parsed.data
     };
 
     onChange({ ...sublevel, items: [...sublevel.items, newItem] });
@@ -383,12 +472,13 @@ function SharedResourceSublevelSection({
       }
 
       if (field === "determinations") {
+        if (useGlobalDeterminations) {
+          return item;
+        }
+
         return {
           ...item,
-          determinations: numericValue,
-          isCustomDeterminations: useGlobalDeterminations
-            ? numericValue !== globalDeterminations
-            : undefined
+          determinations: numericValue
         };
       }
 
@@ -417,7 +507,7 @@ function SharedResourceSublevelSection({
   const tooltip = sublevelTooltips[sublevel.id];
 
   const showGlobalDeterminationsWarning =
-    isInfrastructureSublevel && globalDeterminations <= 0;
+    useGlobalDeterminations && globalDeterminations <= 0;
 
   return (
     <section
@@ -469,7 +559,9 @@ function SharedResourceSublevelSection({
                 Costo mensual (ARS)
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Determinaciones mensuales
+                {useGlobalDeterminations
+                  ? "Determinaciones mensuales (DM global)"
+                  : "Determinaciones mensuales"}
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Costo unitario
@@ -517,11 +609,17 @@ function SharedResourceSublevelSection({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
+                  {useGlobalDeterminations ? (
+                    <span className="inline-flex min-w-[6rem] items-center justify-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+                      {globalDeterminations > 0
+                        ? `${globalDeterminations} DM`
+                        : "Definir DM"}
+                    </span>
+                  ) : (
                     <input
                       type="number"
                       min={1}
-                      step="1"
+                      step={1}
                       value={item.determinations}
                       onChange={(event) =>
                         handleFieldChange(
@@ -532,14 +630,7 @@ function SharedResourceSublevelSection({
                       }
                       className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
                     />
-                    {useGlobalDeterminations && item.isCustomDeterminations ? (
-                      <ManualOverrideIcon
-                        className="h-4 w-4 text-amber-500"
-                        aria-label="Valor personalizado"
-                        title="Valor personalizado"
-                      />
-                    ) : null}
-                  </div>
+                  )}
                 </td>
                 <td className="px-3 py-2 font-medium text-slate-700">
                   {currencyFormatter.format(
@@ -575,7 +666,9 @@ function SharedResourceSublevelSection({
       ) : null}
 
       <form
-        className={`grid gap-3 rounded-lg border border-dashed p-4 text-sm md:grid-cols-4 ${appearance.form}`}
+        className={`grid gap-3 rounded-lg border border-dashed p-4 text-sm ${appearance.form} ${
+          useGlobalDeterminations ? "md:grid-cols-3" : "md:grid-cols-4"
+        }`}
         onSubmit={(event) => {
           event.preventDefault();
           handleAdd();
@@ -617,22 +710,24 @@ function SharedResourceSublevelSection({
             className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
           />
         </label>
-        <label className="flex flex-col space-y-1">
-          <span>Determinaciones mensuales</span>
-          <input
-            type="number"
-            min={1}
-            step="1"
-            value={draft.determinations}
-            onChange={(event) =>
-              setDraft((prev) => ({
-                ...prev,
-                determinations: event.target.value
-              }))
-            }
-            className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-          />
-        </label>
+        {useGlobalDeterminations ? null : (
+          <label className="flex flex-col space-y-1">
+            <span>Determinaciones mensuales</span>
+            <input
+              type="number"
+              min={1}
+              step={1}
+              value={draft.determinations}
+              onChange={(event) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  determinations: event.target.value
+                }))
+              }
+              className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+            />
+          </label>
+        )}
 
         <button
           type="submit"
@@ -692,12 +787,28 @@ function IndirectEquipmentSublevelSection({
   const handleAdd = () => {
     setError(null);
 
-    if (
-      draft.purchasePrice === "" ||
-      draft.usefulLifeMonths === "" ||
-      draft.determinations === ""
-    ) {
+    if (draft.purchasePrice === "" || draft.usefulLifeMonths === "") {
+      setError(
+        useGlobalDeterminations
+          ? "Completa el precio y la vida útil para agregar el equipo"
+          : "Completa el precio, la vida útil y las determinaciones"
+      );
+      return;
+    }
+
+    if (!useGlobalDeterminations && draft.determinations === "") {
       setError("Completa el precio, la vida útil y las determinaciones");
+      return;
+    }
+
+    const determinationsValue = useGlobalDeterminations
+      ? globalDeterminations
+      : Number(draft.determinations);
+
+    if (useGlobalDeterminations && determinationsValue <= 0) {
+      setError(
+        "Definí la base global de prorrateo (DM) antes de cargar equipos"
+      );
       return;
     }
 
@@ -705,7 +816,7 @@ function IndirectEquipmentSublevelSection({
       name: draft.name.trim(),
       purchasePrice: Number(draft.purchasePrice),
       usefulLifeMonths: Number(draft.usefulLifeMonths),
-      determinations: Number(draft.determinations)
+      determinations: determinationsValue
     });
 
     if (!parsed.success) {
@@ -715,10 +826,7 @@ function IndirectEquipmentSublevelSection({
 
     const newItem: IndirectEquipmentItem = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      ...parsed.data,
-      isCustomDeterminations: useGlobalDeterminations
-        ? parsed.data.determinations !== globalDeterminations
-        : undefined
+      ...parsed.data
     };
 
     onChange({ ...sublevel, items: [...sublevel.items, newItem] });
@@ -753,12 +861,13 @@ function IndirectEquipmentSublevelSection({
       }
 
       if (field === "determinations") {
+        if (useGlobalDeterminations) {
+          return item;
+        }
+
         return {
           ...item,
-          determinations: numericValue,
-          isCustomDeterminations: useGlobalDeterminations
-            ? numericValue !== globalDeterminations
-            : undefined
+          determinations: numericValue
         };
       }
 
@@ -818,7 +927,9 @@ function IndirectEquipmentSublevelSection({
                 Vida útil (meses)
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Determinaciones mensuales
+                {useGlobalDeterminations
+                  ? "Determinaciones mensuales (DM global)"
+                  : "Determinaciones mensuales"}
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Costo unitario
@@ -885,11 +996,17 @@ function IndirectEquipmentSublevelSection({
                   />
                 </td>
                 <td className="px-3 py-2">
-                  <div className="flex items-center gap-2">
+                  {useGlobalDeterminations ? (
+                    <span className="inline-flex min-w-[6rem] items-center justify-center rounded-md bg-emerald-100 px-2 py-1 text-xs font-semibold text-emerald-800">
+                      {globalDeterminations > 0
+                        ? `${globalDeterminations} DM`
+                        : "Definir DM"}
+                    </span>
+                  ) : (
                     <input
                       type="number"
                       min={1}
-                      step="1"
+                      step={1}
                       value={item.determinations}
                       onChange={(event) =>
                         handleFieldChange(
@@ -900,14 +1017,7 @@ function IndirectEquipmentSublevelSection({
                       }
                       className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
                     />
-                    {useGlobalDeterminations && item.isCustomDeterminations ? (
-                      <ManualOverrideIcon
-                        className="h-4 w-4 text-amber-500"
-                        aria-label="Valor personalizado"
-                        title="Valor personalizado"
-                      />
-                    ) : null}
-                  </div>
+                  )}
                 </td>
                 <td className="px-3 py-2 font-medium text-slate-700">
                   {currencyFormatter.format(
@@ -930,7 +1040,9 @@ function IndirectEquipmentSublevelSection({
       </div>
 
       <form
-        className={`grid gap-3 rounded-lg border border-dashed p-4 text-sm md:grid-cols-5 ${appearance.form}`}
+        className={`grid gap-3 rounded-lg border border-dashed p-4 text-sm ${appearance.form} ${
+          useGlobalDeterminations ? "md:grid-cols-4" : "md:grid-cols-5"
+        }`}
         onSubmit={(event) => {
           event.preventDefault();
           handleAdd();

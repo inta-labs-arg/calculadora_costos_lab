@@ -29,6 +29,13 @@ import { HourlyRatesProvider } from "@/contexts/HourlyRatesContext";
 
 const DEFAULT_GLOBAL_DETERMINATIONS = 100;
 
+const LEVEL_TWO_SUBLEVEL_IDS = new Set<IndirectSublevelState["id"]>([
+  "materialesNoDescartables",
+  "equipamientoMenor",
+  "mantenimientoEquipamiento",
+  "infraestructura"
+]);
+
 function createInitialLevels(globalDeterminations: number): LevelState[] {
   return [
     {
@@ -270,41 +277,28 @@ function HomePageContent() {
         return {
           ...level,
           sublevels: level.sublevels.map((sublevel) => {
-            if (
-              sublevel.id !== "materialesNoDescartables" &&
-              sublevel.id !== "equipamientoMenor" &&
-              sublevel.id !== "mantenimientoEquipamiento" &&
-              sublevel.id !== "infraestructura"
-            ) {
+            if (!LEVEL_TWO_SUBLEVEL_IDS.has(sublevel.id)) {
               return sublevel;
             }
 
             if (sublevel.type === "shared-resource") {
               return {
                 ...sublevel,
-                items: sublevel.items.map((item) =>
-                  item.isCustomDeterminations
-                    ? item
-                    : {
-                        ...item,
-                        determinations: value,
-                        isCustomDeterminations: false
-                      }
-                )
+                items: sublevel.items.map((item) => ({
+                  ...item,
+                  determinations: value,
+                  isCustomDeterminations: value > 0 ? false : undefined
+                }))
               } satisfies IndirectSublevelState;
             }
 
             return {
               ...sublevel,
-              items: sublevel.items.map((item) =>
-                item.isCustomDeterminations
-                  ? item
-                  : {
-                      ...item,
-                      determinations: value,
-                      isCustomDeterminations: false
-                    }
-              )
+              items: sublevel.items.map((item) => ({
+                ...item,
+                determinations: value,
+                isCustomDeterminations: value > 0 ? false : undefined
+              }))
             } satisfies IndirectSublevelState;
           })
         } satisfies typeof level;
@@ -405,10 +399,7 @@ function HomePageContent() {
       <IntroPanel onExport={handleExport} />
 
       <div id="configuracion" className="scroll-mt-24">
-        <ConfigurationPanel
-          globalDeterminations={globalDeterminations}
-          onGlobalDeterminationsChange={handleGlobalDeterminationsChange}
-        />
+        <ConfigurationPanel />
       </div>
 
       <div id="niveles" className="space-y-6 scroll-mt-24">
@@ -434,6 +425,7 @@ function HomePageContent() {
                   handleIndirectSublevelChange(level.id, sublevel)
                 }
                 globalDeterminations={globalDeterminations}
+                onGlobalDeterminationsChange={handleGlobalDeterminationsChange}
               />
             );
           }

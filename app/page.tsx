@@ -404,10 +404,15 @@ function HomePageContent() {
     <div className="mx-auto max-w-6xl space-y-12 px-4 py-10">
       <IntroPanel onExport={handleExport} />
 
-      <div className="flex flex-col gap-8 lg:flex-row">
-        <div className="flex-1 space-y-6">
-          <div id="niveles" className="space-y-6 scroll-mt-24">
-            {levels.map((level, index) => {
+      <div id="configuracion" className="scroll-mt-24">
+        <ConfigurationPanel
+          globalDeterminations={globalDeterminations}
+          onGlobalDeterminationsChange={handleGlobalDeterminationsChange}
+        />
+      </div>
+
+      <div id="niveles" className="space-y-6 scroll-mt-24">
+        {levels.map((level, index) => {
           if (level.type === "direct-group") {
             return (
               <LevelOneCard
@@ -459,42 +464,32 @@ function HomePageContent() {
 
           const baseBreakdown = levels.slice(0, index).map((candidate) => ({
             id: candidate.id,
-              name: candidate.name,
-              subtotal: totals[candidate.id]
-            }));
+            name: candidate.name,
+            subtotal: totals[candidate.id]
+          }));
 
-            return (
-              <PercentageLevelCard
-                key={level.id}
-                level={level}
-                onChange={(updates) => handlePercentageChange(level.id, updates)}
-                baseBreakdown={baseBreakdown}
-                currentTotals={totals}
-              />
-            );
-            })}
-          </div>
-        </div>
-
-        <aside className="space-y-6 lg:w-80 lg:flex-shrink-0">
-          <div id="configuracion" className="scroll-mt-24">
-            <ConfigurationPanel
-              globalDeterminations={globalDeterminations}
-              onGlobalDeterminationsChange={handleGlobalDeterminationsChange}
+          return (
+            <PercentageLevelCard
+              key={level.id}
+              level={level}
+              onChange={(updates) => handlePercentageChange(level.id, updates)}
+              baseBreakdown={baseBreakdown}
+              currentTotals={totals}
             />
-          </div>
-          <div id="resumen" className="scroll-mt-24">
-            <SummaryPanel
-              orderedTotals={orderedTotals}
-              grandTotal={grandTotal}
-              exchangeRate={exchangeRateState}
-            />
-          </div>
-        </aside>
+          );
+        })}
       </div>
 
       <div id="gestor-horas" className="scroll-mt-24">
         <HourlyRatesPanel />
+      </div>
+
+      <div id="resumen" className="scroll-mt-24">
+        <SummaryPanel
+          orderedTotals={orderedTotals}
+          grandTotal={grandTotal}
+          exchangeRate={exchangeRateState}
+        />
       </div>
     </div>
   );

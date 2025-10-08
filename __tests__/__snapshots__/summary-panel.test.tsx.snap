@@ -43,7 +43,7 @@ exports[`SummaryPanel presenta la desagregación del equipamiento manteniendo el
           — Fuente:
           <span
             class="font-medium text-slate-800"
-            title="Se usó cache/valor manual por indisponibilidad del BCRA"
+            title="Se usó cache/valor manual por indisponibilidad de Monedapi"
           >
             Manual
           </span>

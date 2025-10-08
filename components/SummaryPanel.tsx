@@ -35,15 +35,15 @@ export function SummaryPanel({
 }: SummaryPanelProps) {
   const { state: hourlyRateState } = useHourlyRates();
   const sourceLabel =
-    exchangeRate.source === "bcra"
-      ? "BCRA"
+    exchangeRate.source === "monedapi"
+      ? "Monedapi.ar"
       : exchangeRate.source === "cache"
         ? "Cache local"
         : "Manual";
   const sourceTooltip =
-    exchangeRate.source === "bcra"
+    exchangeRate.source === "monedapi"
       ? undefined
-      : "Se usó cache/valor manual por indisponibilidad del BCRA";
+      : "Se usó cache/valor manual por indisponibilidad de Monedapi";
   const rateLabel = `${exchangeRateFormatter.format(exchangeRate.rate)} ARS/USD`;
   const hourlySyncLabel = hourlyRateState.lastSyncISO
     ? `Tabla local (${hourlyRateState.lastSyncISO} · ${

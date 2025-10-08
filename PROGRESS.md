@@ -12,10 +12,10 @@ La siguiente tabla resume los features y escenarios que definen el alcance funci
 | `costos_directos.feature` | Registrar insumos directos en distintas monedas · Sincronizar valores hora del personal · Distribuir depreciación y calibración de equipamiento específico |
 | `costos_indirectos_y_prorrateo.feature` | Ajustar determinaciones mensuales para prorrateo · Documentar infraestructura base |
 | `gestor_valores_hora.feature` | Administrar perfiles y exportar respaldos · Previsualizar e importar tablas |
-| `integracion_bcra.feature` | Consultar la cotización USD→ARS con caché y reintentos |
+| `integracion_monedapi.feature` | Consultar la cotización USD→ARS con caché y reintentos |
 | `orientacion_exportacion_global.feature` | Exportar supuestos de cálculo en JSON |
 | `resumen_economico.feature` | Visualizar y exportar el resumen del servicio |
-| `tipo_de_cambio_y_bcra.feature` | Ajustar manualmente el tipo de cambio · Activar consulta automática al BCRA · Mantener valor manual ante fallas |
+| `tipo_de_cambio_y_monedapi.feature` | Ajustar manualmente el tipo de cambio · Activar consulta automática a Monedapi · Mantener valor manual ante fallas |
 
 ## Bitácora cronológica
 

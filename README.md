@@ -58,34 +58,31 @@ defecto:
 - Puedes ampliar la lógica de cálculo en `lib/cost-calculation.ts` para incluir
   unidades adicionales, coeficientes u hojas de referencia externas.
 
-## Tipo de cambio y API del BCRA
+## Tipo de cambio y Monedapi
 
-La aplicación obtiene el tipo de cambio oficial minorista USD → ARS desde la
-API pública **BCRA – Estadísticas Cambiarias v1.0**
-(`<https://api.bcra.gob.ar/estadisticascambiarias/v1.0>`). El backend de Next.js
-expone un endpoint interno (`/api/bcra/usd`) que encapsula las llamadas a
-`/Cotizaciones` y normaliza la respuesta al contrato usado por la interfaz.
+La aplicación obtiene el tipo de cambio oficial minorista USD → ARS desde
+**Monedapi** (`https://monedapi.ar/docs`). El backend de Next.js expone un
+endpoint interno (`/api/monedapi/usd`) que encapsula la consulta al servicio y
+normaliza la respuesta al contrato usado por la interfaz.
 
 ### Flujo de consulta
 
-1. El cliente (`contexts/ExchangeRateContext.tsx`) solicita `/api/bcra/usd`.
+1. El cliente (`contexts/ExchangeRateContext.tsx`) solicita `/api/monedapi/usd`.
 2. La función serverless aplica un timeout de 4 s mediante `AbortController` y
    controla la caché (`s-maxage=3600`, `stale-while-revalidate=300`).
-3. Se consulta primero `/Cotizaciones?fecha=YYYY-MM-DD` usando la fecha actual
-   de Buenos Aires y, si es necesario, se retrocede hasta tres días para cubrir
-   fines de semana o feriados. Como último recurso se invoca `/Cotizaciones` sin
-   fecha para obtener el último dato disponible.
+3. Se invoca `https://api.monedapi.ar/v1/latest?market=oficial&symbol=usdars` y
+   se normaliza la estructura (fecha, valor de venta y origen).
 4. Las respuestas válidas se almacenan en una caché LRU en memoria (60 minutos
-   de vigencia, retención de emergencia hasta 24 h). Si el BCRA está caído pero
+   de vigencia, retención de emergencia hasta 24 h). Si Monedapi está caído pero
    existe un valor en caché, el endpoint responde con `source: "cache"` para que
    la UI muestre el aviso correspondiente.
-5. Si no hay datos ni en el BCRA ni en caché, el endpoint devuelve `503
-   BCRA_UNAVAILABLE` y la aplicación conserva el tipo de cambio manual.
+5. Si no hay datos ni en Monedapi ni en caché, el endpoint devuelve `503
+   MONEDAPI_UNAVAILABLE` y la aplicación conserva el tipo de cambio manual.
 
 ### SLA internos
 
-- **Origen oficial**: BCRA – Estadísticas Cambiarias v1.0 (`/Cotizaciones`).
-- **Timeout**: 4 segundos por solicitud al BCRA.
+- **Origen oficial**: Monedapi (`/v1/latest` con `market=oficial`).
+- **Timeout**: 4 segundos por solicitud al servicio externo.
 - **Caché de aplicación**: 60 minutos de validez (máximo 24 h en modo
   contingencia).
 - **Encabezados HTTP**: `cache-control: public, s-maxage=3600,

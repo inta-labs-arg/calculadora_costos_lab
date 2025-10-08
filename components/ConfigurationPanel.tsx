@@ -14,7 +14,7 @@ export function ConfigurationPanel() {
     manualState,
     updateManualState,
     applyManualState,
-    fetchBcraRate,
+    fetchMonedapiRate,
     isFetching
   } = useExchangeRate();
   const isAutomatic = state.source !== "manual";
@@ -45,10 +45,11 @@ export function ConfigurationPanel() {
   const handleToggle = async (event: ChangeEvent<HTMLInputElement>) => {
     if (event.target.checked) {
       try {
-        await fetchBcraRate();
+        await fetchMonedapiRate();
       } catch (error) {
         console.error(error);
-        const fallback = "No fue posible obtener el tipo de cambio oficial del BCRA.";
+        const fallback =
+          "No fue posible obtener el tipo de cambio oficial desde Monedapi.";
         const errorMessage =
           error instanceof Error && typeof error.message === "string"
             ? error.message.trim()
@@ -78,12 +79,16 @@ export function ConfigurationPanel() {
   const noteValue = manualState.note ?? "";
 
   const sourceLabel =
-    state.source === "bcra" ? "BCRA" : state.source === "cache" ? "Cache local" : "Manual";
+    state.source === "monedapi"
+      ? "Monedapi.ar"
+      : state.source === "cache"
+        ? "Cache local"
+        : "Manual";
 
   const sourceTooltip =
-    state.source === "bcra"
+    state.source === "monedapi"
       ? undefined
-      : "Se usó cache/valor manual por indisponibilidad del BCRA";
+      : "Se usó cache/valor manual por indisponibilidad de Monedapi";
 
   return (
     <section className="relative rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-md">
@@ -135,19 +140,19 @@ export function ConfigurationPanel() {
           </div>
 
           <p className="text-xs text-slate-500">
-            Los valores manuales quedan guardados como respaldo si la consulta al
-            BCRA no está disponible.
+            Los valores manuales quedan guardados como respaldo si la consulta a
+            Monedapi no está disponible.
           </p>
 
           <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-700">
             <label className="flex items-center justify-between gap-3">
               <span>
                 <span className="block font-medium text-slate-800">
-                  Obtener TC del BCRA
+                  Obtener TC desde Monedapi
                 </span>
                 <span className="block text-xs text-slate-500">
                   Actualiza automáticamente con el último tipo de cambio oficial
-                  minorista.
+                  minorista informado por Monedapi.
                 </span>
               </span>
               <input
@@ -159,7 +164,7 @@ export function ConfigurationPanel() {
               />
             </label>
             {isFetching ? (
-              <p className="text-xs text-slate-500">Consultando al BCRA…</p>
+              <p className="text-xs text-slate-500">Consultando a Monedapi…</p>
             ) : null}
             <p className="text-xs text-slate-500">
               TC aplicado (USD → ARS): <span className="font-medium text-slate-700">{appliedRateLabel}</span> — Fuente:{" "}

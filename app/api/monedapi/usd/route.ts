@@ -1,16 +1,13 @@
 import { NextResponse } from "next/server";
-import { BcraUnavailableError, fetchUsdArsFromBcra } from "@/lib/bcra";
+import { MonedapiUnavailableError, fetchUsdArsFromMonedapi } from "@/lib/monedapi";
 
-const GENERIC_BCRA_ERROR = "No fue posible obtener la cotización USD del BCRA.";
+const GENERIC_MONEDAPI_ERROR = "No fue posible obtener la cotización USD desde Monedapi.";
 
-function normalizeErrorMessage(error: unknown): {
-  message: string;
-  details?: string;
-} {
+function normalizeErrorMessage(error: unknown): { message: string; details?: string } {
   if ((error as { name?: string }).name === "AbortError") {
-    const detail = "Se agotó el tiempo de espera consultando al BCRA";
+    const detail = "Se agotó el tiempo de espera consultando a Monedapi";
     return {
-      message: `${GENERIC_BCRA_ERROR} Motivo: ${detail}.`,
+      message: `${GENERIC_MONEDAPI_ERROR} Motivo: ${detail}.`,
       details: detail
     };
   }
@@ -21,13 +18,13 @@ function normalizeErrorMessage(error: unknown): {
       : "";
 
   if (!rawMessage) {
-    return { message: `${GENERIC_BCRA_ERROR} Motivo: desconocido.` };
+    return { message: `${GENERIC_MONEDAPI_ERROR} Motivo: desconocido.` };
   }
 
   const sanitized = rawMessage.replace(/\.+$/, "");
   const normalizedDetail = sanitized || rawMessage;
   const lowerDetail = normalizedDetail.toLowerCase();
-  const lowerGeneric = GENERIC_BCRA_ERROR.toLowerCase();
+  const lowerGeneric = GENERIC_MONEDAPI_ERROR.toLowerCase();
 
   if (lowerDetail.startsWith(lowerGeneric)) {
     const finalMessage = normalizedDetail.endsWith(".")
@@ -37,7 +34,7 @@ function normalizeErrorMessage(error: unknown): {
   }
 
   return {
-    message: `${GENERIC_BCRA_ERROR} Motivo: ${normalizedDetail}.`,
+    message: `${GENERIC_MONEDAPI_ERROR} Motivo: ${normalizedDetail}.`,
     details: normalizedDetail
   };
 }
@@ -49,7 +46,7 @@ export async function GET() {
   const timeout = setTimeout(() => controller.abort(), 4000);
 
   try {
-    const result = await fetchUsdArsFromBcra(undefined, controller.signal);
+    const result = await fetchUsdArsFromMonedapi(undefined, controller.signal);
     return new NextResponse(JSON.stringify(result), {
       status: 200,
       headers: {
@@ -59,13 +56,13 @@ export async function GET() {
     });
   } catch (error) {
     if (
-      error instanceof BcraUnavailableError ||
+      error instanceof MonedapiUnavailableError ||
       (error as { name?: string }).name === "AbortError"
     ) {
       const { message, details } = normalizeErrorMessage(error);
       return new NextResponse(
         JSON.stringify({
-          error: "BCRA_UNAVAILABLE",
+          error: "MONEDAPI_UNAVAILABLE",
           message,
           ...(details ? { details } : {})
         }),

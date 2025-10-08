@@ -16,7 +16,7 @@ describe("ExchangeRateProvider", () => {
     vi.setSystemTime(new Date("2024-06-05T12:00:00Z"));
   });
 
-  it("actualiza el estado con el valor del BCRA cuando el endpoint responde", async () => {
+  it("actualiza el estado con el valor de Monedapi cuando el endpoint responde", async () => {
     const { result } = renderHook(() => useExchangeRate(), {
       wrapper: ExchangeRateProvider
     });
@@ -35,10 +35,10 @@ describe("ExchangeRateProvider", () => {
     );
 
     await act(async () => {
-      await result.current.fetchBcraRate();
+      await result.current.fetchMonedapiRate();
     });
 
-    expect(result.current.state.source).toBe("bcra");
+    expect(result.current.state.source).toBe("monedapi");
     expect(result.current.state.rate).toBeCloseTo(987.65);
     expect(result.current.state.dateISO).toBe("2024-06-05");
   });
@@ -62,14 +62,14 @@ describe("ExchangeRateProvider", () => {
     );
 
     await act(async () => {
-      await result.current.fetchBcraRate();
+      await result.current.fetchMonedapiRate();
     });
 
     expect(result.current.state.source).toBe("cache");
     expect(result.current.state.dateISO).toBe("2024-06-04");
   });
 
-  it("falls back to manual values when the BCRA API is unavailable", async () => {
+  it("falls back to manual values when the Monedapi API is unavailable", async () => {
     const manualRate = 955.75;
     const manualDate = "2024-03-15";
 
@@ -87,7 +87,7 @@ describe("ExchangeRateProvider", () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network down"));
 
     await act(async () => {
-      await expect(result.current.fetchBcraRate()).rejects.toThrow("Network down");
+      await expect(result.current.fetchMonedapiRate()).rejects.toThrow("Network down");
     });
 
     expect(result.current.state.source).toBe("manual");

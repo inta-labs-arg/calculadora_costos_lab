@@ -37,7 +37,7 @@ describe("SummaryPanel", () => {
 
     const exchangeRate = {
       rate: 750.5,
-      source: "bcra" as const,
+      source: "monedapi" as const,
       dateISO: "2024-04-15",
       note: "Cotización cierre"
     };
@@ -64,7 +64,7 @@ describe("SummaryPanel", () => {
         content.includes(`TC aplicado: ${formattedRate} ARS/USD`)
       )
     ).toBeInTheDocument();
-    expect(screen.getByText(/Fuente: BCRA/i)).toBeInTheDocument();
+    expect(screen.getByText(/Fuente: Monedapi\.ar/i)).toBeInTheDocument();
     expect(screen.getByText(/Fecha 2024-04-15/i)).toBeInTheDocument();
     expect(screen.getByText(/Observaciones: Cotización cierre/i)).toBeInTheDocument();
   });

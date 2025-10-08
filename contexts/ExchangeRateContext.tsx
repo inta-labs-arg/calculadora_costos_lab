@@ -9,9 +9,9 @@ import {
   type ReactNode
 } from "react";
 
-export const BCRA_EXRATE_URL = "/api/bcra/usd";
+export const MONEDAPI_EXRATE_URL = "/api/monedapi/usd";
 
-type ExchangeRateSource = "manual" | "bcra" | "cache";
+type ExchangeRateSource = "manual" | "monedapi" | "cache";
 
 export interface ExchangeRateState {
   rate: number;
@@ -31,7 +31,7 @@ interface ExchangeRateContextValue {
   manualState: ManualExchangeRateState;
   updateManualState: (updates: Partial<ManualExchangeRateState>) => void;
   applyManualState: () => void;
-  fetchBcraRate: () => Promise<void>;
+  fetchMonedapiRate: () => Promise<void>;
   isFetching: boolean;
 }
 
@@ -120,16 +120,16 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
     });
   }, [manualState]);
 
-  const fetchBcraRate = useCallback(async () => {
+  const fetchMonedapiRate = useCallback(async () => {
     setIsFetching(true);
     try {
-      const response = await fetch(BCRA_EXRATE_URL, {
+      const response = await fetch(MONEDAPI_EXRATE_URL, {
         headers: { Accept: "application/json" }
       });
       const contentType = response.headers.get("content-type") ?? "";
 
       if (!response.ok) {
-        let errorMessage = `Respuesta inesperada del BCRA: ${response.status} ${response.statusText}`;
+        let errorMessage = `Respuesta inesperada del servicio de Monedapi: ${response.status} ${response.statusText}`;
         if (contentType.includes("application/json")) {
           try {
             const { message } = (await response.json()) as { message?: string };
@@ -137,14 +137,17 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
               errorMessage = message;
             }
           } catch (error) {
-            console.error("No fue posible parsear el error del endpoint /api/bcra/usd", error);
+            console.error(
+              "No fue posible parsear el error del endpoint /api/monedapi/usd",
+              error
+            );
           }
         }
         throw new Error(errorMessage);
       }
 
       if (!contentType.includes("application/json")) {
-        throw new Error("La respuesta del endpoint /api/bcra/usd no es JSON");
+        throw new Error("La respuesta del endpoint /api/monedapi/usd no es JSON");
       }
 
       const payload = (await response.json()) as {
@@ -155,12 +158,14 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
 
       const normalizedRate = normalizeRateValue(payload.rate);
       if (Number.isNaN(normalizedRate)) {
-        throw new Error("El endpoint /api/bcra/usd devolvió un tipo de cambio inválido");
+        throw new Error(
+          "El endpoint /api/monedapi/usd devolvió un tipo de cambio inválido"
+        );
       }
 
       const resolvedDate = payload.dateISO ? new Date(payload.dateISO) : null;
       if (!resolvedDate || Number.isNaN(resolvedDate.getTime())) {
-        throw new Error("El endpoint /api/bcra/usd devolvió una fecha inválida");
+        throw new Error("El endpoint /api/monedapi/usd devolvió una fecha inválida");
       }
 
       const source: ExchangeRateSource =
@@ -168,7 +173,7 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
           ? "cache"
           : payload.source === "manual"
             ? "manual"
-            : "bcra";
+            : "monedapi";
 
       setState({
         rate: normalizedRate,
@@ -195,10 +200,17 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
       manualState,
       updateManualState,
       applyManualState,
-      fetchBcraRate,
+      fetchMonedapiRate,
       isFetching
     }),
-    [state, manualState, updateManualState, applyManualState, fetchBcraRate, isFetching]
+    [
+      state,
+      manualState,
+      updateManualState,
+      applyManualState,
+      fetchMonedapiRate,
+      isFetching
+    ]
   );
 
   return (

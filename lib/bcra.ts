@@ -395,7 +395,10 @@ function extractRateCandidate(
         : null;
 
     if (!best || weight >= best.weight) {
-      best = { value: candidate, weight, date: candidateDate ?? best?.date };
+      const nextDate = candidateDate ?? best?.date;
+      best = nextDate
+        ? { value: candidate, weight, date: nextDate }
+        : { value: candidate, weight };
     }
   }
 

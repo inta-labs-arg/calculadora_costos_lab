@@ -13,18 +13,58 @@ export function IntroPanel({ onExport }: IntroPanelProps) {
   return (
     <section className="space-y-4 rounded-3xl bg-gradient-to-r from-inta-blue to-inta-green p-8 text-white shadow-lg">
       <div className="flex flex-wrap items-start justify-between gap-4">
-        <div className="max-w-3xl space-y-3">
-          <p className="text-sm uppercase tracking-wide text-white/80">
-            Instituto Nacional de Tecnología Agropecuaria
-          </p>
-          <h1 className="text-3xl font-bold leading-tight md:text-4xl">
-            Calculadora de Costos de Servicios de Laboratorio
-          </h1>
-          <p className="text-base text-white/80">
-            Construye escenarios económicos robustos combinando los cinco niveles
-            definidos por INTA: recursos humanos, insumos estratégicos, uso de
-            equipamiento, servicios generales y gestión institucional.
-          </p>
+        <div className="max-w-3xl space-y-4">
+          <div className="space-y-3">
+            <p className="text-sm uppercase tracking-wide text-white/80">
+              Instituto Nacional de Tecnología Agropecuaria
+            </p>
+            <h1 className="text-3xl font-bold leading-tight md:text-4xl">
+              Calculadora de Costos de Servicios de Laboratorio
+            </h1>
+            <p className="text-base text-white/80">
+              Construí escenarios económicos robustos integrando los niveles de
+              costos definidos por INTA y distribuyendo recursos directos,
+              indirectos y porcentuales en un mismo flujo de trabajo.
+            </p>
+          </div>
+
+          <nav
+            aria-label="Atajos principales"
+            className="flex flex-wrap gap-2 text-sm font-medium text-white/90"
+          >
+            <a
+              className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/20 hover:text-white"
+              href="#niveles"
+            >
+              Niveles de cálculo
+            </a>
+            <a
+              className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/20 hover:text-white"
+              href="#configuracion"
+            >
+              Configuración
+            </a>
+            <a
+              className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/20 hover:text-white"
+              href="#resumen"
+            >
+              Resumen económico
+            </a>
+            <a
+              className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/20 hover:text-white"
+              href="#gestor-horas"
+            >
+              Gestor de horas INTA
+            </a>
+            <a
+              className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/20 hover:text-white"
+              href="https://www.argentina.gob.ar/inta/cr-cordoba/guia-metodologica-para-el-costeo-de-servicios-rutinarios-en-laboratorios-de-inta"
+              target="_blank"
+              rel="noreferrer"
+            >
+              Guía metodológica INTA
+            </a>
+          </nav>
         </div>
         <div className="flex flex-col gap-3 text-sm">
           <button
@@ -45,42 +85,78 @@ export function IntroPanel({ onExport }: IntroPanelProps) {
       </div>
 
       {showHelp ? (
-        <div className="grid gap-4 rounded-2xl bg-white/15 p-6 text-sm md:grid-cols-3 lg:grid-cols-5">
-          <div>
-            <h3 className="font-semibold uppercase tracking-wide text-white/70">1. Recursos humanos</h3>
-            <p className="text-white/80">
-              Estima las horas técnicas y operativas necesarias para el servicio,
-              incluyendo cargas sociales o pluses salariales.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold uppercase tracking-wide text-white/70">2. Insumos y reactivos</h3>
-            <p className="text-white/80">
-              Considera consumibles, reactivos críticos y materiales descartables
-              por unidad de servicio.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold uppercase tracking-wide text-white/70">3. Equipamiento</h3>
-            <p className="text-white/80">
-              Calcula depreciaciones y costos horarios de cada equipo, incluyendo
-              mantenimiento preventivo y correctivo.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold uppercase tracking-wide text-white/70">4. Servicios generales</h3>
-            <p className="text-white/80">
-              Contempla energía, agua, bioseguridad y otras utilidades que se
-              distribuyen mediante coeficientes porcentuales.
-            </p>
-          </div>
-          <div>
-            <h3 className="font-semibold uppercase tracking-wide text-white/70">5. Gestión y margen</h3>
-            <p className="text-white/80">
-              Incorpora planificación, control de calidad, articulación con
-              usuarios y un margen de sostenibilidad.
-            </p>
-          </div>
+        <div className="space-y-4 rounded-2xl bg-white/15 p-6 text-sm">
+          <h3 className="text-base font-semibold uppercase tracking-wide text-white/80">
+            Guía rápida de uso
+          </h3>
+          <ol className="grid list-decimal gap-4 pl-5 md:grid-cols-2 md:gap-6 lg:grid-cols-3">
+            <li className="space-y-2 text-white/80">
+              <p className="font-semibold text-white">
+                Configurá la base de trabajo
+              </p>
+              <p>
+                Ajustá las determinaciones mensuales y el tipo de cambio en el panel de
+                configuración. Estos parámetros prorratean automáticamente los costos
+                indirectos y normalizan los montos en ARS.
+              </p>
+            </li>
+            <li className="space-y-2 text-white/80">
+              <p className="font-semibold text-white">
+                Cargá los costos directos
+              </p>
+              <p>
+                Incorporá insumos, mano de obra y equipamiento específico en los subniveles
+                del Nivel 1. La calculadora totaliza cada renglón según cantidad, tarifa y
+                horas declaradas.
+              </p>
+            </li>
+            <li className="space-y-2 text-white/80">
+              <p className="font-semibold text-white">
+                Registrá los recursos indirectos
+              </p>
+              <p>
+                Utilizá los subniveles del Nivel 2 para distribuir materiales compartidos,
+                depreciaciones, mantenimiento e infraestructura a partir de la base DM.
+              </p>
+            </li>
+            <li className="space-y-2 text-white/80">
+              <p className="font-semibold text-white">
+                Documentá acreditaciones y monitoreo
+              </p>
+              <p>
+                En el Nivel 3 agrupá aranceles, auditorías y ensayos externos. Podés duplicar
+                partidas y registrar vigencias según los requisitos de calidad.
+              </p>
+            </li>
+            <li className="space-y-2 text-white/80">
+              <p className="font-semibold text-white">
+                Ajustá porcentajes institucionales
+              </p>
+              <p>
+                Editá el Nivel 4 para prorratear afectaciones secuenciales sobre los costos
+                acumulados de los niveles anteriores y reflejar convenios vigentes.
+              </p>
+            </li>
+            <li className="space-y-2 text-white/80">
+              <p className="font-semibold text-white">
+                Revisá, exportá y consultá la metodología
+              </p>
+              <p>
+                El resumen económico consolida subtotales y el total general. Podés exportar
+                los datos en JSON y validar criterios con la
+                {" "}
+                <a
+                  className="font-semibold underline decoration-white/60 underline-offset-4 hover:text-white"
+                  href="https://www.argentina.gob.ar/inta/cr-cordoba/guia-metodologica-para-el-costeo-de-servicios-rutinarios-en-laboratorios-de-inta"
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  guía metodológica de INTA
+                </a>
+                .
+              </p>
+            </li>
+          </ol>
         </div>
       ) : null}
     </section>

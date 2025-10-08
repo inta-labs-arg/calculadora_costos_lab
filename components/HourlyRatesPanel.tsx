@@ -1,6 +1,14 @@
 "use client";
 
-import { ChangeEvent, DragEvent, FormEvent, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  DragEvent,
+  FormEvent,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from "react";
 import {
   HourlyRateRecord,
   HourlyRatesSnapshot,
@@ -40,6 +48,10 @@ export function HourlyRatesPanel() {
     snapshot: null,
     error: null
   });
+  const tableScrollRef = useRef<HTMLDivElement | null>(null);
+  const stickyScrollRef = useRef<HTMLDivElement | null>(null);
+  const [isOverflowing, setIsOverflowing] = useState(false);
+  const [scrollContentWidth, setScrollContentWidth] = useState(0);
 
   const handleFile = async (file: File) => {
     try {
@@ -145,6 +157,85 @@ export function HourlyRatesPanel() {
     return { total, active };
   }, [importState.snapshot]);
 
+  useEffect(() => {
+    const scrollContainer = tableScrollRef.current;
+    if (!scrollContainer) {
+      setIsOverflowing(false);
+      return;
+    }
+
+    const updateMeasurements = () => {
+      const container = tableScrollRef.current;
+      if (!container) {
+        return;
+      }
+      const hasOverflow = container.scrollWidth > container.clientWidth + 1;
+      setIsOverflowing(hasOverflow);
+      setScrollContentWidth(
+        hasOverflow ? container.scrollWidth : container.clientWidth
+      );
+      if (!hasOverflow && stickyScrollRef.current) {
+        stickyScrollRef.current.scrollLeft = 0;
+      }
+    };
+
+    updateMeasurements();
+
+    window.addEventListener("resize", updateMeasurements);
+    if (typeof MutationObserver === "undefined") {
+      return () => {
+        window.removeEventListener("resize", updateMeasurements);
+      };
+    }
+
+    const observer = new MutationObserver(updateMeasurements);
+    observer.observe(scrollContainer, {
+      attributes: true,
+      childList: true,
+      subtree: true
+    });
+
+    return () => {
+      window.removeEventListener("resize", updateMeasurements);
+      observer.disconnect();
+    };
+  }, [items.length]);
+
+  useEffect(() => {
+    if (!isOverflowing) {
+      return;
+    }
+
+    const scrollContainer = tableScrollRef.current;
+    const stickyContainer = stickyScrollRef.current;
+
+    if (!scrollContainer || !stickyContainer) {
+      return;
+    }
+
+    const handleTableScroll = () => {
+      if (!stickyScrollRef.current) {
+        return;
+      }
+      stickyScrollRef.current.scrollLeft = scrollContainer.scrollLeft;
+    };
+
+    const handleStickyScroll = () => {
+      if (!tableScrollRef.current) {
+        return;
+      }
+      tableScrollRef.current.scrollLeft = stickyContainer.scrollLeft;
+    };
+
+    scrollContainer.addEventListener("scroll", handleTableScroll);
+    stickyContainer.addEventListener("scroll", handleStickyScroll);
+
+    return () => {
+      scrollContainer.removeEventListener("scroll", handleTableScroll);
+      stickyContainer.removeEventListener("scroll", handleStickyScroll);
+    };
+  }, [isOverflowing]);
+
   return (
     <section className="space-y-4 rounded-2xl border border-slate-200 bg-white/95 p-6 shadow-md">
       <header className="space-y-1">
@@ -158,45 +249,35 @@ export function HourlyRatesPanel() {
         <p className="text-xs font-medium text-slate-500">{syncLabel}</p>
       </header>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className="bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-600">
-            <tr>
-              <th className="px-3 py-2">Código</th>
-              <th className="px-3 py-2">Nombre del perfil</th>
-              <th className="px-3 py-2">Valor hora (ARS)</th>
-              <th className="px-3 py-2">Vigencia desde</th>
-              <th className="px-3 py-2">Vigencia hasta</th>
-              <th className="px-3 py-2 text-right">Acciones</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {items.length === 0 ? (
+      <div className="relative">
+        <div ref={tableScrollRef} className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-slate-200 text-sm">
+            <thead className="bg-slate-100 text-left text-xs uppercase tracking-wide text-slate-600">
               <tr>
-                <td
-                  colSpan={6}
-                  className="px-3 py-6 text-center text-sm text-slate-500"
-                >
-                  No hay perfiles cargados. Agregá uno nuevo.
-                </td>
+                <th className="px-3 py-2">Nombre del perfil</th>
+                <th className="px-3 py-2">Valor hora (ARS)</th>
+                <th className="px-3 py-2">Vigencia desde</th>
+                <th className="px-3 py-2">Vigencia hasta</th>
+                <th className="px-3 py-2 text-right">Acciones</th>
               </tr>
-            ) : null}
-            {items.map((item) => (
-              <tr key={item.id}>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    value={item.profileCode}
-                    onChange={(event) =>
-                      handleInputChange(item.id, "profileCode", event)
-                    }
-                    className="w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    value={item.profileName}
+            </thead>
+            <tbody className="divide-y divide-slate-200">
+              {items.length === 0 ? (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-3 py-6 text-center text-sm text-slate-500"
+                  >
+                    No hay perfiles cargados. Agregá uno nuevo.
+                  </td>
+                </tr>
+              ) : null}
+              {items.map((item) => (
+                <tr key={item.id}>
+                  <td className="px-3 py-2">
+                    <input
+                      type="text"
+                      value={item.profileName}
                     onChange={(event) =>
                       handleInputChange(item.id, "profileName", event)
                     }
@@ -238,28 +319,43 @@ export function HourlyRatesPanel() {
                     className="w-40 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
                   />
                 </td>
-                <td className="px-3 py-2 text-right">
-                  <div className="flex justify-end gap-2">
-                    <button
-                      type="button"
-                      onClick={() => handleDuplicate(item.id)}
-                      className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
-                    >
-                      Duplicar
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => handleDelete(item.id)}
-                      className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:border-red-300 hover:bg-red-50"
-                    >
-                      Eliminar
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <td className="px-3 py-2 text-right">
+                    <div className="flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => handleDuplicate(item.id)}
+                        className="rounded-lg border border-slate-300 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
+                      >
+                        Duplicar
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id)}
+                        className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-600 transition hover:border-red-300 hover:bg-red-50"
+                      >
+                        Eliminar
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {isOverflowing ? (
+          <div className="pointer-events-none sticky bottom-6 left-0 right-0 z-20">
+            <div
+              ref={stickyScrollRef}
+              className="pointer-events-auto mx-auto h-4 w-full max-w-full overflow-x-auto rounded-full border border-slate-200 bg-white/90 shadow-md"
+            >
+              <div
+                aria-hidden
+                className="h-full"
+                style={{ width: `${scrollContentWidth}px` }}
+              />
+            </div>
+          </div>
+        ) : null}
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -341,7 +437,6 @@ export function HourlyRatesPanel() {
               <table className="min-w-full divide-y divide-slate-200 text-xs">
                 <thead className="bg-slate-100 text-left">
                   <tr>
-                    <th className="px-2 py-1">Código</th>
                     <th className="px-2 py-1">Perfil</th>
                     <th className="px-2 py-1">Tarifa</th>
                     <th className="px-2 py-1">Desde</th>
@@ -351,7 +446,6 @@ export function HourlyRatesPanel() {
                 <tbody className="divide-y divide-slate-200">
                   {pendingItems.map((item) => (
                     <tr key={`${item.profileCode}-${item.vigenciaDesdeISO}`}>
-                      <td className="px-2 py-1">{item.profileCode}</td>
                       <td className="px-2 py-1">{item.profileName}</td>
                       <td className="px-2 py-1">{formatCurrency(item.hourlyRateARS)}</td>
                       <td className="px-2 py-1">{item.vigenciaDesdeISO}</td>

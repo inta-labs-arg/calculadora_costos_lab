@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchUsdArsFromBcra } from "@/lib/bcra";
+import { __resetBcraCacheForTests, fetchUsdArsFromBcra } from "@/lib/bcra";
 
 const jsonHeaders = { "content-type": "application/json" } as const;
 
@@ -32,6 +32,13 @@ function createCotizacionResponse({
   );
 }
 
+function createCatalogResponse(data: unknown) {
+  return new Response(JSON.stringify(data), {
+    status: 200,
+    headers: jsonHeaders
+  });
+}
+
 describe("fetchUsdArsFromBcra", () => {
   beforeEach(() => {
     vi.useFakeTimers();
@@ -41,6 +48,7 @@ describe("fetchUsdArsFromBcra", () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.useRealTimers();
+    __resetBcraCacheForTests();
   });
 
   it("obtiene la cotización USD del día", async () => {
@@ -80,6 +88,34 @@ describe("fetchUsdArsFromBcra", () => {
     expect(result).toEqual({ rate: 955.25, dateISO: "2024-06-04", source: "bcra" });
   });
 
+  it("usa el catálogo público cuando la API principal falla", async () => {
+    const fetchMock = vi.spyOn(globalThis, "fetch");
+
+    fetchMock
+      .mockResolvedValueOnce(new Response("", { status: 500, headers: jsonHeaders }))
+      .mockResolvedValueOnce(
+        createCatalogResponse({
+          metadata: { fechaActualizacion: "2024-06-05T14:00:00-03:00" },
+          cotizaciones: [
+            {
+              moneda: { codigo: "USD", descripcion: "Dólar Estadounidense" },
+              valores: [
+                { fecha: "2024-06-05", tipoCotizacion: "970.35", tipoOperacion: "Venta" },
+                { fecha: "2024-06-04", tipoCotizacion: "960.1", tipoOperacion: "Venta" }
+              ]
+            }
+          ]
+        })
+      );
+
+    const result = await fetchUsdArsFromBcra();
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(fetchMock.mock.calls[0]?.[0]).toContain("/Cotizaciones");
+    expect(fetchMock.mock.calls[1]?.[0]).toContain("estadisticascambiarias-v1.json");
+    expect(result).toEqual({ rate: 970.35, dateISO: "2024-06-05", source: "bcra" });
+  });
+
   it("usa el valor en cache cuando el BCRA no responde", async () => {
     const fetchMock = vi.spyOn(globalThis, "fetch");
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
@@ -97,7 +133,9 @@ describe("fetchUsdArsFromBcra", () => {
     vi.setSystemTime(new Date("2024-06-05T15:00:00Z"));
     fetchMock.mockRejectedValue(new Error("Network down"));
 
-    const fallback = await fetchUsdArsFromBcra();
+    const fallbackPromise = fetchUsdArsFromBcra();
+    await vi.runAllTimersAsync();
+    const fallback = await fallbackPromise;
     expect(fallback.source).toBe("cache");
     expect(fallback.rate).toBeCloseTo(970);
 

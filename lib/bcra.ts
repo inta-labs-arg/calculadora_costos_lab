@@ -1,4 +1,6 @@
 const BCRA_BASE_URL = "https://api.bcra.gob.ar/estadisticascambiarias/v1.0" as const;
+const BCRA_CATALOG_URL =
+  "https://www.bcra.gob.ar/Catalogo/Content/files/json/estadisticascambiarias-v1.json" as const;
 
 export type BcraRate = {
   rate: number;
@@ -67,9 +69,19 @@ class LruCache {
       }
     }
   }
+
+  clear() {
+    this.#map.clear();
+  }
 }
 
 const cache = new LruCache();
+
+export function __resetBcraCacheForTests() {
+  if (process.env.NODE_ENV !== "production") {
+    cache.clear();
+  }
+}
 
 function assertDateISO(dateISO: string): asserts dateISO is string {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(dateISO)) {
@@ -143,6 +155,26 @@ async function fetchWithRetry(url: string, signal?: AbortSignal): Promise<Respon
 }
 
 async function requestCotizaciones(dateISO: string | undefined, signal?: AbortSignal) {
+  try {
+    return await requestLegacyCotizaciones(dateISO, signal);
+  } catch (legacyError) {
+    if ((legacyError as { name?: string }).name === "AbortError") {
+      throw legacyError;
+    }
+
+    try {
+      return await requestCatalogCotizaciones(dateISO, signal);
+    } catch (catalogError) {
+      if ((catalogError as { name?: string }).name === "AbortError") {
+        throw catalogError;
+      }
+
+      throw legacyError;
+    }
+  }
+}
+
+async function requestLegacyCotizaciones(dateISO: string | undefined, signal?: AbortSignal) {
   const url = new URL("/Cotizaciones", BCRA_BASE_URL);
   if (dateISO) {
     url.searchParams.set("fecha", dateISO);
@@ -162,6 +194,356 @@ async function requestCotizaciones(dateISO: string | undefined, signal?: AbortSi
 
   const data = (await response.json()) as BcraCotizacionesResponse;
   return { httpStatus: statusCode, body: data };
+}
+
+type CatalogEntry = {
+  code: string;
+  description?: string;
+  rate: number;
+  dateISO?: string;
+};
+
+type CatalogContext = {
+  code?: string;
+  description?: string;
+  dateISO?: string;
+};
+
+function normalizeString(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+}
+
+function parseNumber(value: unknown): number | null {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value;
+  }
+
+  if (typeof value === "string") {
+    const cleaned = value.replace(/[^0-9,.-]+/g, "").replace(/,/g, ".");
+    const parsed = Number.parseFloat(cleaned);
+    if (Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+
+  return null;
+}
+
+function parseDateString(value: string): string | null {
+  const trimmed = value.trim();
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+
+  if (/^\d{4}\/\d{2}\/\d{2}$/.test(trimmed)) {
+    return trimmed.replaceAll("/", "-");
+  }
+
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(trimmed)) {
+    const [day, month, year] = trimmed.split("/");
+    return `${year}-${month}-${day}`;
+  }
+
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().slice(0, 10);
+  }
+
+  return null;
+}
+
+function parseDate(value: unknown): string | null {
+  if (typeof value === "string") {
+    return parseDateString(value);
+  }
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    // Interpret as Unix timestamp (seconds or milliseconds)
+    const date =
+      value > 10_000_000_000 ? new Date(value) : new Date(value * 1000);
+    if (!Number.isNaN(date.getTime())) {
+      return date.toISOString().slice(0, 10);
+    }
+  }
+
+  return null;
+}
+
+function identifyUsd(value: string): boolean {
+  const normalized = normalizeString(value);
+  if (normalized.includes("USD")) {
+    return true;
+  }
+  if (normalized.includes("DOLAR")) {
+    return (
+      normalized.includes("ESTADOUNID") ||
+      normalized.includes("U.S.A") ||
+      normalized.includes("USA") ||
+      normalized.includes("EEUU") ||
+      normalized.includes("OFICIAL")
+    );
+  }
+  return false;
+}
+
+function enrichCatalogContext(
+  obj: Record<string, unknown>,
+  base: CatalogContext
+): CatalogContext {
+  const context: CatalogContext = { ...base };
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === null || value === undefined) continue;
+    const lowerKey = key.toLowerCase();
+
+    if (typeof value === "string") {
+      if (
+        !context.code &&
+        (lowerKey.includes("moneda") ||
+          lowerKey.includes("codigo") ||
+          lowerKey.includes("divisa") ||
+          lowerKey.includes("identificador") ||
+          lowerKey.includes("nombre") ||
+          lowerKey.includes("descripcion")) &&
+        identifyUsd(value)
+      ) {
+        context.code = "USD";
+        if (!context.description) {
+          context.description = value;
+        }
+      }
+
+      if (
+        !context.dateISO &&
+        (lowerKey.includes("fecha") ||
+          lowerKey.includes("vigencia") ||
+          lowerKey.includes("actualizacion"))
+      ) {
+        const maybeDate = parseDate(value);
+        if (maybeDate) {
+          context.dateISO = maybeDate;
+        }
+      }
+    }
+
+    if (typeof value === "number") {
+      if (
+        !context.dateISO &&
+        (lowerKey.includes("fecha") || lowerKey.includes("vigencia"))
+      ) {
+        const maybeDate = parseDate(value);
+        if (maybeDate) {
+          context.dateISO = maybeDate;
+        }
+      }
+    }
+  }
+
+  return context;
+}
+
+type RateCandidate = { value: number; weight: number; date?: string };
+
+function extractRateCandidate(
+  obj: Record<string, unknown>
+): RateCandidate | null {
+  let best: RateCandidate | null = null;
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === null || value === undefined) continue;
+    const lowerKey = key.toLowerCase();
+
+    const candidate = parseNumber(value);
+    if (candidate === null || candidate <= 0) {
+      continue;
+    }
+
+    if (
+      lowerKey.includes("pase") ||
+      lowerKey.includes("compra") ||
+      lowerKey.includes("cantidad") ||
+      lowerKey.includes("fecha") ||
+      lowerKey.includes("dia") ||
+      lowerKey.includes("mes") ||
+      lowerKey.includes("anio")
+    ) {
+      continue;
+    }
+
+    let weight = 1;
+    if (lowerKey.includes("venta") || lowerKey.includes("vendedor")) {
+      weight = 5;
+    } else if (lowerKey.includes("oficial")) {
+      weight = 4;
+    } else if (
+      lowerKey.includes("cotizacion") ||
+      lowerKey.includes("cierre") ||
+      lowerKey.includes("tipo")
+    ) {
+      weight = 3;
+    } else if (lowerKey.includes("valor") || lowerKey.includes("precio")) {
+      weight = 2;
+    }
+
+    const candidateDate =
+      typeof value === "string" || typeof value === "number"
+        ? parseDate(value)
+        : null;
+
+    if (!best || weight >= best.weight) {
+      best = { value: candidate, weight, date: candidateDate ?? best?.date };
+    }
+  }
+
+  return best;
+}
+
+function collectCatalogEntries(root: unknown): {
+  entries: CatalogEntry[];
+  dates: Set<string>;
+} {
+  const entries: CatalogEntry[] = [];
+  const dates = new Set<string>();
+  const visited = new Set<object>();
+
+  const visit = (value: unknown, context: CatalogContext) => {
+    if (!value || typeof value !== "object") {
+      return;
+    }
+
+    if (visited.has(value)) {
+      return;
+    }
+    visited.add(value);
+
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        visit(item, { ...context });
+      }
+      return;
+    }
+
+    const obj = value as Record<string, unknown>;
+    let nextContext = enrichCatalogContext(obj, context);
+
+    if (!nextContext.code) {
+      for (const [key, child] of Object.entries(obj)) {
+        if (!child || typeof child !== "object") {
+          continue;
+        }
+        const lowerKey = key.toLowerCase();
+        if (lowerKey.includes("moneda") || lowerKey.includes("divisa")) {
+          nextContext = {
+            ...nextContext,
+            ...enrichCatalogContext(child as Record<string, unknown>, nextContext)
+          };
+          if (nextContext.code) {
+            break;
+          }
+        }
+      }
+    }
+
+    if (nextContext.dateISO) {
+      dates.add(nextContext.dateISO);
+    }
+
+    if (nextContext.code) {
+      const rateCandidate = extractRateCandidate(obj);
+      if (rateCandidate) {
+        const entry: CatalogEntry = {
+          code: nextContext.code,
+          description: nextContext.description,
+          rate: rateCandidate.value,
+          dateISO: rateCandidate.date ?? nextContext.dateISO
+        };
+        entries.push(entry);
+        if (entry.dateISO) {
+          dates.add(entry.dateISO);
+        }
+      }
+    }
+
+    for (const child of Object.values(obj)) {
+      if (typeof child === "string") {
+        const maybeDate = parseDate(child);
+        if (maybeDate) {
+          dates.add(maybeDate);
+        }
+      }
+      visit(child, { ...nextContext });
+    }
+  };
+
+  visit(root, {});
+  return { entries, dates };
+}
+
+function normalizeCatalogResponse(
+  raw: unknown,
+  preferredDate: string | undefined
+): BcraCotizacionesSuccess {
+  const { entries, dates } = collectCatalogEntries(raw);
+  const usdEntries = entries.filter((entry) => entry.code === "USD");
+
+  let chosen: CatalogEntry | undefined;
+  if (preferredDate) {
+    chosen = usdEntries.find((entry) => entry.dateISO === preferredDate);
+  }
+
+  if (!chosen) {
+    const datedEntries = usdEntries
+      .filter((entry) => entry.dateISO)
+      .sort((a, b) => (a.dateISO! < b.dateISO! ? 1 : -1));
+    chosen = datedEntries[0] ?? usdEntries[0];
+  }
+
+  const fecha =
+    chosen?.dateISO ?? preferredDate ?? Array.from(dates).sort().pop() ?? null;
+
+  const detalle = chosen
+    ? [
+        {
+          codigoMoneda: "USD",
+          descripcion: chosen.description ?? "Dólar estadounidense",
+          tipoPase: 0,
+          tipoCotizacion: chosen.rate
+        }
+      ]
+    : [];
+
+  return {
+    status: 200,
+    results: {
+      fecha,
+      detalle
+    }
+  };
+}
+
+async function requestCatalogCotizaciones(
+  dateISO: string | undefined,
+  signal?: AbortSignal
+) {
+  const response = await fetchWithRetry(BCRA_CATALOG_URL, signal);
+  const statusCode = response.status;
+  const contentType = response.headers.get("content-type") ?? "";
+
+  if (!response.ok) {
+    throw new Error(`Catálogo del BCRA devolvió estado HTTP ${statusCode}`);
+  }
+
+  if (!contentType.toLowerCase().includes("json")) {
+    throw new Error(`Respuesta inesperada del catálogo del BCRA (${statusCode})`);
+  }
+
+  const raw = await response.json();
+  const normalized = normalizeCatalogResponse(raw, dateISO);
+  return { httpStatus: 200, body: normalized };
 }
 
 function normalizeResultDate(raw: string | null | undefined): string {

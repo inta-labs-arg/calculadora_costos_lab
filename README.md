@@ -62,9 +62,12 @@ defecto:
 
 La aplicación obtiene el tipo de cambio oficial minorista USD → ARS desde la
 API pública **BCRA – Estadísticas Cambiarias v1.0**
-(`<https://api.bcra.gob.ar/estadisticascambiarias/v1.0>`). El backend de Next.js
-expone un endpoint interno (`/api/bcra/usd`) que encapsula las llamadas a
-`/Cotizaciones` y normaliza la respuesta al contrato usado por la interfaz.
+(`<https://api.bcra.gob.ar/estadisticascambiarias/v1.0>`). Si este endpoint no
+responde, se consulta el catálogo JSON publicado por el BCRA
+(`<https://www.bcra.gob.ar/Catalogo/Content/files/json/estadisticascambiarias-v1.json>`)
+para recuperar la última cotización disponible. El backend de Next.js expone un
+endpoint interno (`/api/bcra/usd`) que encapsula las llamadas y normaliza la
+respuesta al contrato usado por la interfaz.
 
 ### Flujo de consulta
 

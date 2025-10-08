@@ -16,6 +16,12 @@ const exchangeRateFormatter = new Intl.NumberFormat("es-AR", {
   maximumFractionDigits: 4
 });
 
+const usdCurrencyFormatter = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "USD",
+  maximumFractionDigits: 2
+});
+
 export function SummaryPanel({
   orderedTotals,
   grandTotal,
@@ -122,6 +128,11 @@ export function SummaryPanel({
             <p className="text-2xl font-bold text-inta-blue">
               {currencyFormatter.format(grandTotal)}
             </p>
+            {exchangeRate.rate > 0 ? (
+              <p className="text-sm text-inta-blue/80">
+                ≈ {usdCurrencyFormatter.format(grandTotal / exchangeRate.rate)}
+              </p>
+            ) : null}
           </div>
         </div>
       </div>

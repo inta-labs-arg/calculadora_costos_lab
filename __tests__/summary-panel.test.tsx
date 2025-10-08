@@ -67,11 +67,13 @@ describe("SummaryPanel", () => {
   });
 
   it("presenta la desagregación del equipamiento manteniendo el subtotal", () => {
+    const grandTotal = 1700;
+
     const orderedTotals: LevelTotal[] = [
       {
         id: "nivel1",
         name: "Nivel 1 · Costos Directos Unitarios",
-        subtotal: 1700,
+        subtotal: grandTotal,
         breakdown: [
           {
             id: "insumosDirectos",
@@ -109,13 +111,25 @@ describe("SummaryPanel", () => {
     const { container } = render(
       <SummaryPanel
         orderedTotals={orderedTotals}
-        grandTotal={1700}
+        grandTotal={grandTotal}
         exchangeRate={exchangeRate}
       />
     );
 
     expect(
-      screen.getByText(currencyFormatter.format(1700))
+      screen.getByText(currencyFormatter.format(grandTotal))
+    ).toBeInTheDocument();
+
+    const usdFormatter = new Intl.NumberFormat("es-AR", {
+      style: "currency",
+      currency: "USD",
+      maximumFractionDigits: 2
+    });
+
+    expect(
+      screen.getByText(
+        `≈ ${usdFormatter.format(grandTotal / exchangeRate.rate)}`
+      )
     ).toBeInTheDocument();
     expect(container.firstChild).toMatchSnapshot();
   });

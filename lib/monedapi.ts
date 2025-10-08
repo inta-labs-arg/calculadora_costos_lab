@@ -1,4 +1,4 @@
-const MONEDAPI_BASE_URL = "https://api.monedapi.ar/v1/" as const;
+const MONEDAPI_BASE_URL = "https://monedapi.ar/api/" as const;
 
 export type MonedapiRate = {
   rate: number;
@@ -301,9 +301,7 @@ async function fetchWithRetry(url: string, signal?: AbortSignal): Promise<Respon
 }
 
 async function requestUsdQuote(signal?: AbortSignal) {
-  const url = new URL("latest", MONEDAPI_BASE_URL);
-  url.searchParams.set("market", "oficial");
-  url.searchParams.set("symbol", "usdars");
+  const url = new URL("usd/bna", MONEDAPI_BASE_URL);
 
   const response = await fetchWithRetry(url.toString(), signal);
   const statusCode = response.status;

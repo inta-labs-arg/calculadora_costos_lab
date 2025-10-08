@@ -14,12 +14,12 @@ function createMonedapiResponse({
 }) {
   return new Response(
     JSON.stringify({
-      data: {
-        symbol: "usdars_oficial",
-        sell_price: sellPrice,
-        last_updated_at: updatedAt,
-        ...extra
-      }
+      moneda: "USD",
+      origen: "BNA",
+      compra: typeof sellPrice === "number" ? sellPrice - 20 : 0,
+      venta: sellPrice,
+      actualizado: updatedAt,
+      ...extra
     }),
     { status: 200, headers: jsonHeaders }
   );

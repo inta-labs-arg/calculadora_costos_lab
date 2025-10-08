@@ -70,8 +70,8 @@ normaliza la respuesta al contrato usado por la interfaz.
 1. El cliente (`contexts/ExchangeRateContext.tsx`) solicita `/api/monedapi/usd`.
 2. La función serverless aplica un timeout de 4 s mediante `AbortController` y
    controla la caché (`s-maxage=3600`, `stale-while-revalidate=300`).
-3. Se invoca `https://api.monedapi.ar/v1/latest?market=oficial&symbol=usdars` y
-   se normaliza la estructura (fecha, valor de venta y origen).
+3. Se invoca `https://monedapi.ar/api/usd/bna` y se normaliza la estructura
+   (fecha, valor de venta y origen).
 4. Las respuestas válidas se almacenan en una caché LRU en memoria (60 minutos
    de vigencia, retención de emergencia hasta 24 h). Si Monedapi está caído pero
    existe un valor en caché, el endpoint responde con `source: "cache"` para que
@@ -81,7 +81,7 @@ normaliza la respuesta al contrato usado por la interfaz.
 
 ### SLA internos
 
-- **Origen oficial**: Monedapi (`/v1/latest` con `market=oficial`).
+- **Origen oficial**: Monedapi (`/api/usd/bna`).
 - **Timeout**: 4 segundos por solicitud al servicio externo.
 - **Caché de aplicación**: 60 minutos de validez (máximo 24 h en modo
   contingencia).

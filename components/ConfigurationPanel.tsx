@@ -8,15 +8,7 @@ const appliedRateFormatter = new Intl.NumberFormat("es-AR", {
   maximumFractionDigits: 4
 });
 
-interface ConfigurationPanelProps {
-  globalDeterminations: number;
-  onGlobalDeterminationsChange: (value: number) => void;
-}
-
-export function ConfigurationPanel({
-  globalDeterminations,
-  onGlobalDeterminationsChange
-}: ConfigurationPanelProps) {
+export function ConfigurationPanel() {
   const {
     state,
     manualState,
@@ -27,16 +19,6 @@ export function ConfigurationPanel({
   } = useExchangeRate();
   const isAutomatic = state.source !== "manual";
   const [toast, setToast] = useState<string | null>(null);
-  const [determinationsInput, setDeterminationsInput] = useState(
-    globalDeterminations.toString()
-  );
-  const [determinationsError, setDeterminationsError] = useState<string | null>(
-    null
-  );
-
-  useEffect(() => {
-    setDeterminationsInput(globalDeterminations.toString());
-  }, [globalDeterminations]);
 
   useEffect(() => {
     if (!toast) {
@@ -83,33 +65,6 @@ export function ConfigurationPanel({
     }
   };
 
-  const handleDeterminationsChange = (
-    event: ChangeEvent<HTMLInputElement>
-  ) => {
-    const nextValue = event.target.value;
-    setDeterminationsInput(nextValue);
-
-    if (nextValue.trim() === "") {
-      setDeterminationsError("Ingresa las determinaciones mensuales");
-      return;
-    }
-
-    const numericValue = Number(nextValue);
-
-    if (Number.isNaN(numericValue) || !Number.isInteger(numericValue)) {
-      setDeterminationsError("Debe ser un número entero");
-      return;
-    }
-
-    if (numericValue <= 0) {
-      setDeterminationsError("Debe ser mayor a cero");
-      return;
-    }
-
-    setDeterminationsError(null);
-    onGlobalDeterminationsChange(numericValue);
-  };
-
   const appliedRateLabel = useMemo(
     () => `${appliedRateFormatter.format(state.rate)} ARS/USD`,
     [state.rate]
@@ -136,34 +91,13 @@ export function ConfigurationPanel({
         <header className="max-w-xl space-y-1 lg:w-80 lg:flex-none">
           <h2 className="text-lg font-semibold text-slate-900">Configuración</h2>
           <p className="text-sm text-slate-600">
-            Define la base global de prorrateo y el tipo de cambio de referencia
-            para normalizar los insumos en pesos argentinos.
+            Define el tipo de cambio de referencia y las observaciones
+            complementarias para normalizar los insumos en pesos argentinos.
           </p>
         </header>
 
         <div className="flex-1 space-y-6">
           <div className="grid gap-4 text-sm text-slate-700 md:grid-cols-2">
-            <label className="flex flex-col gap-1">
-              <span className="font-medium text-slate-800">
-                Determinaciones mensuales del laboratorio (DM)
-              </span>
-              <input
-                type="number"
-                min={1}
-                step={1}
-                value={determinationsInput}
-                onChange={handleDeterminationsChange}
-                className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              />
-              {determinationsError ? (
-                <span className="text-xs text-rose-600">{determinationsError}</span>
-              ) : (
-                <span className="text-xs text-slate-500">
-                  Base global de prorrateo para los subniveles 2.1 a 2.4.
-                </span>
-              )}
-            </label>
-
             <label className="flex flex-col gap-1">
               <span className="font-medium text-slate-800">
                 Tipo de cambio (USD → ARS)

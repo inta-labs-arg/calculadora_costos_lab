@@ -32,40 +32,33 @@ describe("IndirectLevelCard", () => {
     ]
   };
 
-  it("permite personalizar las determinaciones mensuales y marca el override", () => {
+  it("permite actualizar la DM global desde el nivel 2 y refleja el valor en los subniveles", () => {
     const handleChange = vi.fn<(sublevel: IndirectSublevelState) => void>();
-    const { rerender } = render(
+    const handleGlobalDeterminationsChange = vi.fn<(value: number) => void>();
+
+    render(
       <IndirectLevelCard
         level={baseLevel}
         onSublevelChange={handleChange}
         globalDeterminations={100}
+        onGlobalDeterminationsChange={handleGlobalDeterminationsChange}
       />
     );
+
+    const determinationsInput = screen.getByLabelText(
+      "Cantidad de determinaciones mensuales"
+    );
+    fireEvent.change(determinationsInput, { target: { value: "150" } });
+
+    expect(handleGlobalDeterminationsChange).toHaveBeenCalledWith(150);
 
     const row = screen.getByText("Servicio de limpieza").closest("tr");
     if (!row) {
       throw new Error("Row not found");
     }
 
-    const determinationsInput = within(row).getByDisplayValue("100");
-    fireEvent.change(determinationsInput, { target: { value: "140" } });
-
-    expect(handleChange).toHaveBeenCalledTimes(1);
-    const updatedSublevel = handleChange.mock.calls[0][0];
-    expect(updatedSublevel.items[0].determinations).toBe(140);
-    expect(updatedSublevel.items[0].isCustomDeterminations).toBe(true);
-
-    rerender(
-      <IndirectLevelCard
-        level={{ ...baseLevel, sublevels: [updatedSublevel] }}
-        onSublevelChange={handleChange}
-        globalDeterminations={100}
-      />
-    );
-
-    expect(
-      screen.getByLabelText("Valor personalizado")
-    ).toBeInTheDocument();
+    expect(within(row).queryByDisplayValue("100")).not.toBeInTheDocument();
+    expect(within(row).getByText("100 DM")).toBeInTheDocument();
   });
 
   it("muestra la base global de prorrateo en el resumen del nivel", () => {

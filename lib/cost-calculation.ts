@@ -42,9 +42,10 @@ export interface SupplyCostItem {
   id: string;
   item: string;
   unitOfMeasure: string;
-  quantity: number;
-  unitCost: number;
-  currency: CurrencyCode;
+  presentationFormat: string;
+  presentationQuantity: number;
+  presentationPrice: number;
+  determinationQuantity: number;
 }
 
 export type LaborRole =
@@ -268,16 +269,20 @@ export function calculateDirectLevel(level: DirectLevelState): number {
   return level.items.reduce((acc, item) => acc + item.quantity * item.unitCost, 0);
 }
 
+export function calculateSupplyItemUnitPrice(item: SupplyCostItem): number {
+  if (item.presentationQuantity <= 0) {
+    return 0;
+  }
+
+  return item.presentationPrice / item.presentationQuantity;
+}
+
 export function calculateSupplyItemCost(
   item: SupplyCostItem,
-  options?: CalculationOptions
+  _options?: CalculationOptions
 ): number {
-  const exchangeRate =
-    typeof options?.exchangeRate === "number" && !Number.isNaN(options.exchangeRate)
-      ? options.exchangeRate
-      : 0;
-  const multiplier = item.currency === "USD" ? exchangeRate : 1;
-  return item.quantity * item.unitCost * multiplier;
+  const unitPrice = calculateSupplyItemUnitPrice(item);
+  return unitPrice * item.determinationQuantity;
 }
 
 export function calculateLaborItemCost(item: LaborCostItem): number {

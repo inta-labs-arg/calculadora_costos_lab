@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import {
   DirectLevelGroupState,
-  CurrencyCode,
   EquipmentCostItem,
   EquipmentSublevelState,
   LaborCostItem,
@@ -16,11 +15,11 @@ import {
   calculateEquipmentSublevelTotals,
   calculateSublevelSubtotal,
   calculateSupplyItemCost,
+  calculateSupplyItemUnitPrice,
   calculateLaborItemCost,
   currencyFormatter
 } from "@/lib/cost-calculation";
 import { ManualOverrideIcon, PlusIcon } from "./icons";
-import { useExchangeRate } from "@/contexts/ExchangeRateContext";
 import { useHourlyRates } from "@/contexts/HourlyRatesContext";
 import { appConfig } from "@/lib/app-config";
 
@@ -32,15 +31,23 @@ interface LevelOneCardProps {
 const supplySchema = z.object({
   item: z.string().min(1, "Ingresa el nombre del insumo"),
   unitOfMeasure: z.string().min(1, "Indica la unidad de medida"),
-  quantity: z
-    .number({ invalid_type_error: "Indica la cantidad utilizada" })
-    .nonnegative("La cantidad debe ser mayor o igual a cero"),
-  unitCost: z
-    .number({ invalid_type_error: "Indica el costo unitario" })
-    .nonnegative("El costo debe ser mayor o igual a cero"),
-  currency: z.enum(["ARS", "USD"], {
-    errorMap: () => ({ message: "Selecciona ARS o USD" })
-  })
+  presentationFormat: z.string().min(1, "Describe el formato de presentación"),
+  presentationQuantity: z
+    .number({
+      invalid_type_error:
+        "Indica la cantidad que trae el formato de presentación"
+    })
+    .gt(0, "La cantidad del formato debe ser mayor a cero"),
+  presentationPrice: z
+    .number({
+      invalid_type_error: "Indica el precio del formato de compra"
+    })
+    .nonnegative("El precio debe ser mayor o igual a cero"),
+  determinationQuantity: z
+    .number({
+      invalid_type_error: "Indica la cantidad utilizada en la determinación"
+    })
+    .nonnegative("La cantidad debe ser mayor o igual a cero")
 });
 
 const equipmentSchema = z.object({
@@ -102,9 +109,6 @@ const directSublevelAppearances: SublevelAppearance[] = [
 ];
 
 export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
-  const {
-    state: { rate: exchangeRate }
-  } = useExchangeRate();
   const breakdown = useMemo(
     () =>
       level.sublevels.map((sublevel) => {
@@ -134,10 +138,10 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
         return {
           id: sublevel.id,
           name: sublevel.name,
-          subtotal: calculateSublevelSubtotal(sublevel, { exchangeRate })
+          subtotal: calculateSublevelSubtotal(sublevel)
         };
       }),
-    [level, exchangeRate]
+    [level]
   );
 
   const total = useMemo(
@@ -179,7 +183,6 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
                 sublevel={sublevel}
                 onChange={onSublevelChange}
                 appearance={appearance}
-                exchangeRate={exchangeRate}
               />
             );
           }
@@ -255,42 +258,41 @@ interface SublevelSectionProps<T extends SublevelState> {
 function SupplySublevelSection({
   sublevel,
   onChange,
-  appearance,
-  exchangeRate
-}: SublevelSectionProps<SupplySublevelState> & { exchangeRate: number }) {
+  appearance
+}: SublevelSectionProps<SupplySublevelState>) {
   const subtotal = useMemo(
-    () => calculateSublevelSubtotal(sublevel, { exchangeRate }),
-    [sublevel, exchangeRate]
+    () => calculateSublevelSubtotal(sublevel),
+    [sublevel]
   );
-  const [draft, setDraft] = useState<{
-    item: string;
-    unitOfMeasure: string;
-    quantity: string;
-    unitCost: string;
-    currency: CurrencyCode;
-  }>({
+  const [draft, setDraft] = useState({
     item: "",
     unitOfMeasure: "",
-    quantity: "",
-    unitCost: "",
-    currency: "ARS"
+    presentationFormat: "",
+    presentationQuantity: "",
+    presentationPrice: "",
+    determinationQuantity: ""
   });
   const [error, setError] = useState<string | null>(null);
 
   const handleAdd = () => {
     setError(null);
 
-    if (draft.quantity === "" || draft.unitCost === "") {
-      setError("Completa la cantidad y el costo unitario");
+    if (
+      draft.presentationQuantity === "" ||
+      draft.presentationPrice === "" ||
+      draft.determinationQuantity === ""
+    ) {
+      setError("Completa las cantidades y el precio de referencia");
       return;
     }
 
     const parsed = supplySchema.safeParse({
       item: draft.item.trim(),
       unitOfMeasure: draft.unitOfMeasure.trim(),
-      quantity: Number(draft.quantity),
-      unitCost: Number(draft.unitCost),
-      currency: draft.currency
+      presentationFormat: draft.presentationFormat.trim(),
+      presentationQuantity: Number(draft.presentationQuantity),
+      presentationPrice: Number(draft.presentationPrice),
+      determinationQuantity: Number(draft.determinationQuantity)
     });
 
     if (!parsed.success) {
@@ -307,9 +309,10 @@ function SupplySublevelSection({
     setDraft({
       item: "",
       unitOfMeasure: "",
-      quantity: "",
-      unitCost: "",
-      currency: "ARS"
+      presentationFormat: "",
+      presentationQuantity: "",
+      presentationPrice: "",
+      determinationQuantity: ""
     });
   };
 
@@ -323,20 +326,15 @@ function SupplySublevelSection({
         return item;
       }
 
-      if (field === "quantity" || field === "unitCost") {
+      if (
+        field === "presentationQuantity" ||
+        field === "presentationPrice" ||
+        field === "determinationQuantity"
+      ) {
         const numericValue = Number(value);
         return {
           ...item,
           [field]: Number.isNaN(numericValue) ? 0 : numericValue
-        };
-      }
-
-      if (field === "currency") {
-        const nextCurrency: CurrencyCode =
-          (value as CurrencyCode) === "USD" ? "USD" : "ARS";
-        return {
-          ...item,
-          currency: nextCurrency
         };
       }
 
@@ -375,26 +373,58 @@ function SupplySublevelSection({
         <table className="min-w-full divide-y divide-slate-200 text-sm">
           <thead className={`${appearance.tableHead} text-left`}>
             <tr>
+              <th
+                colSpan={5}
+                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${appearance.header}`}
+              >
+                Referencia del insumo
+              </th>
+              <th
+                colSpan={1}
+                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${appearance.header}`}
+              >
+                Cantidad por determinación
+              </th>
+              <th
+                colSpan={2}
+                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${appearance.header}`}
+              >
+                Costo por determinación
+              </th>
+              <th
+                rowSpan={2}
+                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${appearance.header}`}
+              >
+                Acciones
+              </th>
+            </tr>
+            <tr>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Ítem
+                Insumo
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                 Unidad de medida
+                <span className="block text-xs font-normal text-slate-600">
+                  Es la unidad de medida en la que se distribuye el insumo.
+                </span>
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Cantidad por determinación
+                Formato de presentación
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Costo unitario (moneda origen)
+                Cantidad según formato de presentación
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Costo por muestra
+                Precio actualizado de formato de compra
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Moneda
+                Cantidad utilizada en la determinación
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Acciones
+                Precio unitario según unidad de medida
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Costo de insumo en la determinación
               </th>
             </tr>
           </thead>
@@ -402,10 +432,11 @@ function SupplySublevelSection({
             {sublevel.items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={7}
+                  colSpan={9}
                   className="px-3 py-6 text-center text-sm text-slate-500"
                 >
-                  Detalla cada insumo consumido por muestra para proyectar el costo.
+                  Detalla cada insumo consumido por muestra para proyectar el
+                  costo.
                 </td>
               </tr>
             ) : null}
@@ -418,7 +449,7 @@ function SupplySublevelSection({
                     onChange={(event) =>
                       handleItemChange(item.id, "item", event.target.value)
                     }
-                    className="w-52 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                    className="w-56 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
                   />
                 </td>
                 <td className="px-3 py-2">
@@ -434,47 +465,85 @@ function SupplySublevelSection({
                     }
                     className="w-40 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
                   />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Es la unidad de medida en la que se distribuye el insumo.
+                  </p>
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    type="text"
+                    value={item.presentationFormat}
+                    onChange={(event) =>
+                      handleItemChange(
+                        item.id,
+                        "presentationFormat",
+                        event.target.value
+                      )
+                    }
+                    className="w-48 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  />
                 </td>
                 <td className="px-3 py-2">
                   <input
                     type="number"
                     min={0}
                     step="0.001"
-                    value={item.quantity}
+                    value={item.presentationQuantity}
                     onChange={(event) =>
-                      handleItemChange(item.id, "quantity", event.target.value)
+                      handleItemChange(
+                        item.id,
+                        "presentationQuantity",
+                        event.target.value
+                      )
                     }
                     className="w-32 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
                   />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Expresado en {item.unitOfMeasure || "la misma unidad"}.
+                  </p>
                 </td>
                 <td className="px-3 py-2">
                   <input
                     type="number"
                     min={0}
                     step="0.01"
-                    value={item.unitCost}
+                    value={item.presentationPrice}
                     onChange={(event) =>
-                      handleItemChange(item.id, "unitCost", event.target.value)
+                      handleItemChange(
+                        item.id,
+                        "presentationPrice",
+                        event.target.value
+                      )
+                    }
+                    className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  />
+                </td>
+                <td className="px-3 py-2">
+                  <input
+                    type="number"
+                    min={0}
+                    step="0.001"
+                    value={item.determinationQuantity}
+                    onChange={(event) =>
+                      handleItemChange(
+                        item.id,
+                        "determinationQuantity",
+                        event.target.value
+                      )
                     }
                     className="w-32 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
                   />
+                  <p className="mt-1 text-xs text-slate-500">
+                    Utiliza la misma unidad declarada anteriormente.
+                  </p>
                 </td>
                 <td className="px-3 py-2 text-right font-medium">
                   {currencyFormatter.format(
-                    calculateSupplyItemCost(item, { exchangeRate })
+                    calculateSupplyItemUnitPrice(item)
                   )}
                 </td>
-                <td className="px-3 py-2">
-                  <select
-                    value={item.currency}
-                    onChange={(event) =>
-                      handleItemChange(item.id, "currency", event.target.value)
-                    }
-                    className="w-24 rounded-md border border-slate-300 px-2 py-1 text-sm uppercase focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  >
-                    <option value="ARS">ARS</option>
-                    <option value="USD">USD</option>
-                  </select>
+                <td className="px-3 py-2 text-right font-semibold text-inta-green">
+                  {currencyFormatter.format(calculateSupplyItemCost(item))}
                 </td>
                 <td className="px-3 py-2 text-right">
                   <button
@@ -497,7 +566,7 @@ function SupplySublevelSection({
         <h4 className={`text-sm font-semibold ${appearance.header}`}>
           Agregar un nuevo insumo directo
         </h4>
-        <div className="grid gap-3 md:grid-cols-5">
+        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
           <label className={`flex flex-col text-sm ${appearance.description}`}>
             Ítem
             <input
@@ -521,50 +590,81 @@ function SupplySublevelSection({
               className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
               placeholder="Litros, gramos, unidades"
             />
+            <span className="mt-1 text-xs text-slate-500">
+              Es la unidad de medida en la que se distribuye el insumo.
+            </span>
           </label>
           <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Cantidad por determinación
+            Formato de presentación
+            <input
+              type="text"
+              value={draft.presentationFormat}
+              onChange={(event) =>
+                setDraft((prev) => ({
+                  ...prev,
+                  presentationFormat: event.target.value
+                }))
+              }
+              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+              placeholder="Ej. Pote, frasco, bolsa"
+            />
+          </label>
+          <label className={`flex flex-col text-sm ${appearance.description}`}>
+            Cantidad según formato de presentación
             <input
               type="number"
               min={0}
               step="0.001"
-              value={draft.quantity}
+              value={draft.presentationQuantity}
               onChange={(event) =>
-                setDraft((prev) => ({ ...prev, quantity: event.target.value }))
+                setDraft((prev) => ({
+                  ...prev,
+                  presentationQuantity: event.target.value
+                }))
               }
               className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Ej. 0,25"
+              placeholder="Ej. 0,5"
             />
+            <span className="mt-1 text-xs text-slate-500">
+              Utiliza la misma unidad declarada anteriormente.
+            </span>
           </label>
           <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Costo unitario en moneda origen
+            Precio actualizado de formato de compra
             <input
               type="number"
               min={0}
               step="0.01"
-              value={draft.unitCost}
+              value={draft.presentationPrice}
               onChange={(event) =>
-                setDraft((prev) => ({ ...prev, unitCost: event.target.value }))
+                setDraft((prev) => ({
+                  ...prev,
+                  presentationPrice: event.target.value
+                }))
               }
               className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
               placeholder="Valor de referencia"
             />
           </label>
           <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Moneda
-            <select
-              value={draft.currency}
+            Cantidad utilizada en la determinación
+            <input
+              type="number"
+              min={0}
+              step="0.001"
+              value={draft.determinationQuantity}
               onChange={(event) =>
                 setDraft((prev) => ({
                   ...prev,
-                  currency: event.target.value as CurrencyCode
+                  determinationQuantity: event.target.value
                 }))
               }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 uppercase focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-            >
-              <option value="ARS">ARS</option>
-              <option value="USD">USD</option>
-            </select>
+              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+              placeholder="Ej. 0,25"
+            />
+            <span className="mt-1 text-xs text-slate-500">
+              Expresa la cantidad en la misma unidad de medida.
+            </span>
           </label>
         </div>
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
@@ -578,10 +678,6 @@ function SupplySublevelSection({
           </button>
         </div>
       </div>
-      <p className="text-xs text-slate-500">
-        Los importes cargados en USD se convierten automáticamente a ARS
-        utilizando el tipo de cambio configurado en la sección de Configuración.
-      </p>
     </section>
   );
 }

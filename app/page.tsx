@@ -49,7 +49,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
           id: "insumosDirectos",
           name: "Nivel 1 b.1) Insumos Directos",
           description:
-            "Registra los materiales, reactivos y consumibles específicos que se emplean en cada determinación. Permite consignar unidad de medida, cantidad y costo unitario para estimar el costo por muestra.",
+            "Registra los materiales, reactivos y consumibles específicos que se emplean en cada determinación. Permite consignar formato de compra, precio de reposición y cantidades utilizadas para estimar el costo por muestra.",
           type: "insumos",
           items: []
         },

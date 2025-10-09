@@ -8,6 +8,7 @@ import {
   calculateLaborItemCost,
   calculateSharedResourceItemCost,
   calculateSupplyItemCost,
+  calculateSupplyItemUnitPrice,
   type DirectLevelGroupState,
   type EquipmentCostItem,
   type EquipmentSublevelState,
@@ -17,34 +18,37 @@ import {
 } from "@/lib/cost-calculation";
 
 describe("calculateSupplyItemCost", () => {
-  it("converts USD amounts using the configured exchange rate", () => {
+  it("calcula el precio unitario tomando el formato de compra", () => {
     const item: SupplyCostItem = {
-      id: "usd-item",
-      item: "Reactivo importado",
-      unitOfMeasure: "unidad",
-      quantity: 2,
-      unitCost: 10,
-      currency: "USD"
+      id: "alcohol",
+      item: "Alcohol etílico",
+      unitOfMeasure: "litro",
+      presentationFormat: "Bidón",
+      presentationQuantity: 5,
+      presentationPrice: 18000,
+      determinationQuantity: 0.25
     };
 
-    const total = calculateSupplyItemCost(item, { exchangeRate: 820.5 });
+    const unitPrice = calculateSupplyItemUnitPrice(item);
+    const total = calculateSupplyItemCost(item);
 
-    expect(total).toBeCloseTo(2 * 10 * 820.5);
+    expect(unitPrice).toBeCloseTo(3600);
+    expect(total).toBeCloseTo(900);
   });
 
-  it("keeps ARS amounts unchanged", () => {
+  it("retorna cero cuando la cantidad del formato no es válida", () => {
     const item: SupplyCostItem = {
-      id: "ars-item",
-      item: "Reactivo local",
-      unitOfMeasure: "unidad",
-      quantity: 3,
-      unitCost: 150,
-      currency: "ARS"
+      id: "invalid",
+      item: "Reactivo X",
+      unitOfMeasure: "gramo",
+      presentationFormat: "Sobre",
+      presentationQuantity: 0,
+      presentationPrice: 2500,
+      determinationQuantity: 10
     };
 
-    const total = calculateSupplyItemCost(item, { exchangeRate: 800 });
-
-    expect(total).toBe(450);
+    expect(calculateSupplyItemUnitPrice(item)).toBe(0);
+    expect(calculateSupplyItemCost(item)).toBe(0);
   });
 });
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { IntroPanel } from "@/components/IntroPanel";
 import { LevelOneCard } from "@/components/LevelOneCard";
 import { IndirectLevelCard } from "@/components/IndirectLevelCard";
@@ -47,7 +47,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
       sublevels: [
         {
           id: "insumosDirectos",
-          name: "Subnivel 1.1 · Insumos directos",
+          name: "Nivel 1 b.1) Insumos Directos",
           description:
             "Registra los materiales, reactivos y consumibles específicos que se emplean en cada determinación. Permite consignar unidad de medida, cantidad y costo unitario para estimar el costo por muestra.",
           type: "insumos",
@@ -55,7 +55,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "manoDeObraDirecta",
-          name: "Subnivel 1.2 · Mano de obra directa",
+          name: "Nivel 1 b.2) Mano de obra Directa",
           description:
             "Estima las horas involucradas del personal que participa en la práctica (profesionales, técnicos, apoyos y becarios) y sus tarifas para calcular el costo laboral directo.",
           type: "manoObra",
@@ -100,7 +100,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "equipamientoEspecifico",
-          name: "Subnivel 1.3 · Equipamiento específico",
+          name: "Nivel 1 b.3) Equipamiento específico",
           description:
             "Permite calcular la depreciación y los servicios de calibración asociados al equipamiento utilizado en la determinación, considerando vida útil y frecuencia de calibración.",
           type: "equipamiento",
@@ -117,7 +117,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
       sublevels: [
         {
           id: "materialesNoDescartables",
-          name: "Subnivel 2.1 · Materiales no descartables",
+          name: "Nivel 2 c.1) Materiales no descartables",
           description:
             "Registra materiales reutilizables (jeringas de vidrio, tubos, frascos, etc.) considerando su costo mensual de reposición y el prorrateo por determinación realizada.",
           type: "shared-resource",
@@ -125,7 +125,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "equipamientoMenor",
-          name: "Subnivel 2.2 · Depreciación de equipamiento menor",
+          name: "Nivel 2 c.2) Depreciación de equipamiento menor",
           description:
             "Calcula la depreciación lineal de los equipos menores de uso transversal (balanzas, heladeras, campanas, etc.) y asigna su costo unitario en función de las determinaciones mensuales del laboratorio.",
           type: "indirect-equipment",
@@ -133,7 +133,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "mantenimientoEquipamiento",
-          name: "Subnivel 2.3 · Mantenimiento de equipamiento",
+          name: "Nivel 2 c.3) Mantenimiento de Equipamiento",
           description:
             "Incluye honorarios de especialistas y repuestos vinculados al mantenimiento preventivo y correctivo de los equipos, prorrateados según la actividad mensual.",
           type: "shared-resource",
@@ -141,7 +141,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "infraestructura",
-          name: "Subnivel 2.4 · Costos de infraestructura",
+          name: "Nivel 2 c.4) Costos de Infraestructura",
           description:
             "Agrupa servicios y apoyos generales como energía, gas, agua, limpieza, administración y comunicaciones necesarios para el funcionamiento del laboratorio.",
           type: "shared-resource",
@@ -158,7 +158,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
       sublevels: [
         {
           id: "acreditacionTercerasPartes",
-          name: "Subnivel 3.1 · Acreditación de terceras partes",
+          name: "Nivel 3 d.1) Acreditación de Terceras Partes",
           description:
             "Incluye los aranceles y auditorías requeridas por el Organismo Argentino de Acreditación (OAA) bajo la Norma ISO/IEC 17025 para garantizar la competencia técnica.",
           type: "shared-resource",
@@ -166,7 +166,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "monitoreoRegulatorio",
-          name: "Subnivel 3.2 · Monitoreo de organismos regulatorios",
+          name: "Nivel 3 d.2) Monitoreo de Organismos Regulatorios",
           description:
             "Considera inspecciones, tasas y auditorías asociadas al cumplimiento de normativas de SENASA y ANMAT que habilitan las determinaciones oficiales.",
           type: "shared-resource",
@@ -174,7 +174,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "ensayosInterlaboratorio",
-          name: "Subnivel 3.3 · Participación de ensayos interlaboratorio",
+          name: "Nivel 3. d.3) Participación de Ensayos Interlaboratorio",
           description:
             "Registra las inscripciones y envíos necesarios para participar en comparaciones de desempeño obligatorias o recomendadas que respaldan la calidad analítica.",
           type: "shared-resource",
@@ -219,10 +219,20 @@ function HomePageContent() {
   const {
     state: exchangeRateState
   } = useExchangeRate();
-  const quoteDateISO = useMemo(
-    () => new Date().toISOString().slice(0, 10),
-    []
+  const [quoteDateISO, setQuoteDateISO] = useState(() =>
+    new Date().toISOString().slice(0, 10)
   );
+
+  useEffect(() => {
+    const now = new Date();
+    const localISODate = new Date(
+      now.getTime() - now.getTimezoneOffset() * 60_000
+    )
+      .toISOString()
+      .slice(0, 10);
+
+    setQuoteDateISO(localISODate);
+  }, []);
 
   const { totals, orderedTotals, grandTotal } = useMemo(
     () => calculateTotals(levels, { exchangeRate: exchangeRateState.rate }),
@@ -411,13 +421,34 @@ function HomePageContent() {
       <div id="niveles" className="space-y-6 scroll-mt-24">
         <section className="rounded-3xl border border-inta-blue/60 bg-white/90 p-6 shadow-sm">
           <div className="space-y-4">
-            <div>
-              <h2 className="text-xl font-semibold text-inta-blue">
-                Información del servicio a cotizar
-              </h2>
-              <p className="text-sm text-slate-600">
-                Completa los datos generales del servicio para personalizar el resumen.
-              </p>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h2 className="text-xl font-semibold text-inta-blue">
+                  Información del servicio a costear
+                </h2>
+                <p className="text-sm text-slate-600">
+                  Completa los datos generales del servicio para personalizar el resumen.
+                </p>
+              </div>
+              <div className="group relative inline-flex flex-none">
+                <button
+                  type="button"
+                  aria-describedby="service-info-help"
+                  className="flex h-6 w-6 items-center justify-center rounded-full border border-inta-blue/50 bg-white text-xs font-semibold text-inta-blue shadow-sm transition focus:outline-none focus:ring-2 focus:ring-inta-blue/40 group-hover:bg-inta-blue/10"
+                >
+                  <span className="sr-only">
+                    Ayuda sobre la definición de costo rutinario
+                  </span>
+                  ?
+                </button>
+                <div
+                  id="service-info-help"
+                  role="tooltip"
+                  className="pointer-events-none absolute right-0 top-full z-20 hidden w-64 translate-y-2 rounded-lg border border-slate-200 bg-slate-900 px-3 py-2 text-xs font-medium text-white shadow-lg group-hover:block group-focus-within:block"
+                >
+                  Recordá que esta herramienta acompaña la definición del costo unitario de un servicio rutinario según la guía metodológica del INTA y no debe confundirse con el concepto de precio.
+                </div>
+              </div>
             </div>
 
             <div className="grid gap-4 md:grid-cols-2">

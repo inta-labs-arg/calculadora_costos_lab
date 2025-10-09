@@ -133,7 +133,10 @@ export function SummaryPanel({
       appendBreakdown(level.breakdown, level.name, 1);
     });
 
-    rows.push(["Costo total estimado", currencyFormatter.format(grandTotal)]);
+    rows.push([
+      "Costo Unitario del Servicio Rutinario",
+      currencyFormatter.format(grandTotal)
+    ]);
 
     const csvContent = rows
       .map((cols) =>
@@ -162,8 +165,8 @@ export function SummaryPanel({
           <div>
             <h2 className="text-xl font-semibold text-inta-blue">Resumen del servicio</h2>
             <p className="text-sm text-slate-600">
-              Visualiza el aporte parcial de cada nivel y el costo total estimado del
-              servicio.
+              Visualiza el aporte parcial de cada nivel y el costo unitario del
+              servicio rutinario.
             </p>
           </div>
 
@@ -273,7 +276,9 @@ export function SummaryPanel({
           </ul>
 
           <div className="flex flex-col gap-2 rounded-2xl border border-inta-blue bg-inta-blue/10 p-4 text-slate-800">
-            <p className="text-lg font-semibold text-inta-blue">Costo total estimado</p>
+            <p className="text-lg font-semibold text-inta-blue">
+              Costo Unitario del Servicio Rutinario
+            </p>
             <p className="text-2xl font-bold text-inta-blue">
               {currencyFormatter.format(grandTotal)}
             </p>

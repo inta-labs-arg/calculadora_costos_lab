@@ -33,32 +33,37 @@ const supplyUnitOptions = ["g", "mg", "kg", "mL", "L", "unidad"] as const;
 
 const supplyUnitEnum = z.enum(supplyUnitOptions);
 
-const finiteNumber = (message: string) =>
-  z.number({ invalid_type_error: message }).superRefine((value, ctx) => {
-    if (!Number.isFinite(value)) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "Ingresa un número válido"
-      });
-    }
-  });
-
 const supplyCalculatorSchema = z.object({
   insumo: z.string().min(1, "Ingresa el nombre del insumo"),
   uomBase: supplyUnitEnum,
   formatoPresentacion: z
     .string()
     .min(1, "Describe el formato de presentación (pote, frasco, etc.)"),
-  cantidadPresentacion: finiteNumber(
-    "Indica la cantidad del formato de presentación"
-  ).gt(0, "La cantidad del formato debe ser mayor a cero"),
-  precioPresentacion: finiteNumber(
-    "Indica el precio del formato de compra"
-  ).gt(0, "El precio debe ser mayor a cero"),
+  cantidadPresentacion: z
+    .number({
+      invalid_type_error: "Indica la cantidad del formato de presentación"
+    })
+    .gt(0, "La cantidad del formato debe ser mayor a cero")
+    .refine((value) => Number.isFinite(value), {
+      message: "Ingresa un número válido"
+    }),
+  precioPresentacion: z
+    .number({
+      invalid_type_error: "Indica el precio del formato de compra"
+    })
+    .gt(0, "El precio debe ser mayor a cero")
+    .refine((value) => Number.isFinite(value), {
+      message: "Ingresa un número válido"
+    }),
   uomUso: supplyUnitEnum,
-  cantidadUsada: finiteNumber(
-    "Indica la cantidad utilizada en la determinación"
-  ).min(0, "La cantidad debe ser mayor o igual a cero"),
+  cantidadUsada: z
+    .number({
+      invalid_type_error: "Indica la cantidad utilizada en la determinación"
+    })
+    .min(0, "La cantidad debe ser mayor o igual a cero")
+    .refine((value) => Number.isFinite(value), {
+      message: "Ingresa un número válido"
+    }),
   mermaFactor: z
     .preprocess((value) => {
       if (

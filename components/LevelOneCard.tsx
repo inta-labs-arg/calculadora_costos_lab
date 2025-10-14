@@ -1,21 +1,22 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useForm } from "react-hook-form";
 import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import Decimal from "decimal.js";
+import convert from "convert-units";
 import {
   DirectLevelGroupState,
   EquipmentCostItem,
   EquipmentSublevelState,
   LaborCostItem,
   LaborSublevelState,
-  SupplyCostItem,
   SupplySublevelState,
   SublevelState,
   calculateEquipmentItemCost,
   calculateEquipmentSublevelTotals,
   calculateSublevelSubtotal,
-  calculateSupplyItemCost,
-  calculateSupplyItemUnitPrice,
   calculateLaborItemCost,
   currencyFormatter
 } from "@/lib/cost-calculation";
@@ -28,27 +29,88 @@ interface LevelOneCardProps {
   onSublevelChange: (sublevel: SublevelState) => void;
 }
 
-const supplySchema = z.object({
-  item: z.string().min(1, "Ingresa el nombre del insumo"),
-  unitOfMeasure: z.string().min(1, "Indica la unidad de medida"),
-  presentationFormat: z.string().min(1, "Describe el formato de presentación"),
-  presentationQuantity: z
+const supplyUnitOptions = ["g", "mg", "kg", "mL", "L", "unidad"] as const;
+
+const supplyUnitEnum = z.enum(supplyUnitOptions);
+
+const supplyCalculatorSchema = z.object({
+  insumo: z.string().min(1, "Ingresa el nombre del insumo"),
+  uomBase: supplyUnitEnum,
+  formatoPresentacion: z
+    .string()
+    .min(1, "Describe el formato de presentación (pote, frasco, etc.)"),
+  cantidadPresentacion: z
     .number({
-      invalid_type_error:
-        "Indica la cantidad que trae el formato de presentación"
+      invalid_type_error: "Indica la cantidad del formato de presentación"
     })
+    .finite("Ingresa un número válido")
     .gt(0, "La cantidad del formato debe ser mayor a cero"),
-  presentationPrice: z
+  precioPresentacion: z
     .number({
       invalid_type_error: "Indica el precio del formato de compra"
     })
-    .nonnegative("El precio debe ser mayor o igual a cero"),
-  determinationQuantity: z
+    .finite("Ingresa un número válido")
+    .gt(0, "El precio debe ser mayor a cero"),
+  uomUso: supplyUnitEnum,
+  cantidadUsada: z
     .number({
       invalid_type_error: "Indica la cantidad utilizada en la determinación"
     })
-    .nonnegative("La cantidad debe ser mayor o igual a cero")
+    .finite("Ingresa un número válido")
+    .min(0, "La cantidad debe ser mayor o igual a cero"),
+  mermaFactor: z
+    .preprocess((value) => {
+      if (
+        value === "" ||
+        value === null ||
+        typeof value === "undefined" ||
+        (typeof value === "number" && Number.isNaN(value))
+      ) {
+        return undefined;
+      }
+      return value;
+    },
+    z
+      .number({ invalid_type_error: "Ingresa un valor entre 0 y 1" })
+      .finite("Ingresa un valor entre 0 y 1")
+      .min(0, "La merma no puede ser negativa")
+      .max(1, "La merma no puede superar 1")
+    )
+    .optional()
 });
+
+type SupplyCalculatorFormValues = z.infer<typeof supplyCalculatorSchema>;
+
+type SupplyUnit = (typeof supplyUnitOptions)[number];
+
+const MASS_UNITS = new Set<SupplyUnit>(["mg", "g", "kg"]);
+const VOLUME_UNITS = new Set<SupplyUnit>(["mL", "L"]);
+const unitConversionCode: Record<SupplyUnit, string | null> = {
+  g: "g",
+  mg: "mg",
+  kg: "kg",
+  mL: "ml",
+  L: "l",
+  unidad: null
+};
+const unitLabels: Record<SupplyUnit, string> = {
+  g: "g (gramos)",
+  mg: "mg (miligramos)",
+  kg: "kg (kilogramos)",
+  mL: "mL (mililitros)",
+  L: "L (litros)",
+  unidad: "unidad"
+};
+
+const getUnitGroup = (unit: SupplyUnit) => {
+  if (MASS_UNITS.has(unit)) {
+    return "mass" as const;
+  }
+  if (VOLUME_UNITS.has(unit)) {
+    return "volume" as const;
+  }
+  return "unit" as const;
+};
 
 const equipmentSchema = z.object({
   name: z.string().min(1, "Identifica el equipamiento"),
@@ -257,103 +319,220 @@ interface SublevelSectionProps<T extends SublevelState> {
 
 function SupplySublevelSection({
   sublevel,
-  onChange,
+  onChange: _onChange,
   appearance
 }: SublevelSectionProps<SupplySublevelState>) {
-  const subtotal = useMemo(
-    () => calculateSublevelSubtotal(sublevel),
-    [sublevel]
-  );
-  const [draft, setDraft] = useState({
-    item: "",
-    unitOfMeasure: "",
-    presentationFormat: "",
-    presentationQuantity: "",
-    presentationPrice: "",
-    determinationQuantity: ""
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    formState: { errors, isValid, dirtyFields }
+  } = useForm<SupplyCalculatorFormValues>({
+    resolver: zodResolver(supplyCalculatorSchema),
+    mode: "onChange",
+    reValidateMode: "onChange",
+    defaultValues: {
+      insumo: "",
+      uomBase: "g",
+      formatoPresentacion: "",
+      cantidadPresentacion: 0,
+      precioPresentacion: 0,
+      uomUso: "g",
+      cantidadUsada: 0,
+      mermaFactor: 0
+    }
   });
-  const [error, setError] = useState<string | null>(null);
 
-  const handleAdd = () => {
-    setError(null);
+  const uomBase = watch("uomBase");
+  const cantidadPresentacion = watch("cantidadPresentacion");
+  const precioPresentacion = watch("precioPresentacion");
+  const uomUso = watch("uomUso");
+  const cantidadUsada = watch("cantidadUsada");
+  const mermaFactor = watch("mermaFactor");
 
-    if (
-      draft.presentationQuantity === "" ||
-      draft.presentationPrice === "" ||
-      draft.determinationQuantity === ""
-    ) {
-      setError("Completa las cantidades y el precio de referencia");
+  useEffect(() => {
+    if (!dirtyFields.uomUso && uomUso !== uomBase) {
+      setValue("uomUso", uomBase, { shouldDirty: false, shouldValidate: true });
+    }
+  }, [dirtyFields.uomUso, setValue, uomBase, uomUso]);
+
+  const [copyStatus, setCopyStatus] = useState<"idle" | "success" | "error">(
+    "idle"
+  );
+
+  useEffect(() => {
+    if (copyStatus === "idle") {
       return;
     }
+    const timeout = window.setTimeout(() => setCopyStatus("idle"), 3000);
+    return () => window.clearTimeout(timeout);
+  }, [copyStatus]);
 
-    const parsed = supplySchema.safeParse({
-      item: draft.item.trim(),
-      unitOfMeasure: draft.unitOfMeasure.trim(),
-      presentationFormat: draft.presentationFormat.trim(),
-      presentationQuantity: Number(draft.presentationQuantity),
-      presentationPrice: Number(draft.presentationPrice),
-      determinationQuantity: Number(draft.determinationQuantity)
-    });
-
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Datos inválidos");
-      return;
+  const calculation = useMemo(() => {
+    if (!isValid) {
+      return {
+        precioUnitario: null,
+        cantidadEfectiva: null,
+        cantidadEfectivaBase: null,
+        costoParcial: null,
+        warning: null
+      } as const;
     }
 
-    const newItem: SupplyCostItem = {
-      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      ...parsed.data
-    };
+    const mermaDecimal = new Decimal(mermaFactor ?? 0);
+    const precioUnitario = new Decimal(precioPresentacion).div(
+      new Decimal(cantidadPresentacion)
+    );
+    const cantidadEfectiva = new Decimal(cantidadUsada).mul(
+      mermaDecimal.plus(1)
+    );
 
-    onChange({ ...sublevel, items: [...sublevel.items, newItem] });
-    setDraft({
-      item: "",
-      unitOfMeasure: "",
-      presentationFormat: "",
-      presentationQuantity: "",
-      presentationPrice: "",
-      determinationQuantity: ""
-    });
-  };
+    let warning: string | null = null;
+    let cantidadEfectivaBase: Decimal | null = cantidadEfectiva;
 
-  const handleItemChange = <K extends keyof SupplyCostItem>(
-    id: string,
-    field: K,
-    value: string
-  ) => {
-    const updatedItems = sublevel.items.map((item) => {
-      if (item.id !== id) {
-        return item;
-      }
+    if (uomUso !== uomBase) {
+      const fromGroup = getUnitGroup(uomUso);
+      const toGroup = getUnitGroup(uomBase);
+      const fromCode = unitConversionCode[uomUso];
+      const toCode = unitConversionCode[uomBase];
 
       if (
-        field === "presentationQuantity" ||
-        field === "presentationPrice" ||
-        field === "determinationQuantity"
+        uomUso === "unidad" ||
+        uomBase === "unidad" ||
+        fromGroup !== toGroup ||
+        !fromCode ||
+        !toCode
       ) {
-        const numericValue = Number(value);
-        return {
-          ...item,
-          [field]: Number.isNaN(numericValue) ? 0 : numericValue
-        };
+        warning = "UoM no convertibles (masa↔volumen)";
+        cantidadEfectivaBase = null;
+      } else {
+        try {
+          const converted = convert(cantidadEfectiva.toNumber())
+            .from(fromCode)
+            .to(toCode);
+          cantidadEfectivaBase = new Decimal(converted);
+        } catch {
+          warning = "UoM no convertibles (masa↔volumen)";
+          cantidadEfectivaBase = null;
+        }
       }
+    }
 
-      return {
-        ...item,
-        [field]: value
-      };
+    const costoParcial =
+      cantidadEfectivaBase === null
+        ? null
+        : precioUnitario.mul(cantidadEfectivaBase);
+
+    return {
+      precioUnitario,
+      cantidadEfectiva,
+      cantidadEfectivaBase,
+      costoParcial,
+      warning
+    } as const;
+  }, [
+    cantidadPresentacion,
+    cantidadUsada,
+    isValid,
+    mermaFactor,
+    precioPresentacion,
+    uomBase,
+    uomUso
+  ]);
+
+  const canExport =
+    isValid && calculation.costoParcial !== null && !calculation.warning;
+
+  const formatDecimal = (value: Decimal) =>
+    value.toFixed(2, Decimal.ROUND_HALF_UP);
+
+  const formatCurrencyDecimal = (value: Decimal) =>
+    currencyFormatter.format(
+      Number(value.toFixed(2, Decimal.ROUND_HALF_UP))
+    );
+
+  const handleCopy = handleSubmit(async (values) => {
+    if (!canExport || !calculation.precioUnitario || !calculation.costoParcial) {
+      setCopyStatus("error");
+      return;
+    }
+
+    if (!navigator?.clipboard) {
+      setCopyStatus("error");
+      return;
+    }
+
+    const lines = [
+      `Insumo: ${values.insumo}`,
+      `Unidad base: ${values.uomBase}`,
+      `Formato de presentación: ${values.formatoPresentacion}`,
+      `Cantidad presentación: ${formatDecimal(new Decimal(values.cantidadPresentacion))} ${values.uomBase}`,
+      `Precio unitario: ${formatCurrencyDecimal(calculation.precioUnitario)} / ${values.uomBase}`,
+      `Cantidad efectiva (${values.uomUso}): ${formatDecimal(calculation.cantidadEfectiva!)}`
+    ];
+
+    if (
+      values.uomUso !== values.uomBase &&
+      calculation.cantidadEfectivaBase
+    ) {
+      lines.push(
+        `Cantidad efectiva (${values.uomBase}): ${formatDecimal(calculation.cantidadEfectivaBase)}`
+      );
+    }
+
+    lines.push(
+      `Costo parcial: ${formatCurrencyDecimal(calculation.costoParcial)}`
+    );
+
+    try {
+      await navigator.clipboard.writeText(lines.join("\n"));
+      setCopyStatus("success");
+    } catch {
+      setCopyStatus("error");
+    }
+  });
+
+  const handleLog = handleSubmit((values) => {
+    if (!canExport || !calculation.precioUnitario || !calculation.costoParcial) {
+      console.warn(
+        "No se registró el costo parcial porque la conversión de unidades es inválida."
+      );
+      return;
+    }
+
+    console.log("Costo parcial de insumo directo", {
+      insumo: values.insumo,
+      uomBase: values.uomBase,
+      formatoPresentacion: values.formatoPresentacion,
+      cantidadPresentacion: values.cantidadPresentacion,
+      precioPresentacion: values.precioPresentacion,
+      uomUso: values.uomUso,
+      cantidadUsada: values.cantidadUsada,
+      mermaFactor: values.mermaFactor ?? 0,
+      precioUnitario: Number(
+        calculation.precioUnitario.toFixed(4, Decimal.ROUND_HALF_UP)
+      ),
+      cantidadEfectiva: Number(
+        calculation.cantidadEfectiva!.toFixed(4, Decimal.ROUND_HALF_UP)
+      ),
+      cantidadEfectivaBase: calculation.cantidadEfectivaBase
+        ? Number(
+            calculation.cantidadEfectivaBase.toFixed(
+              4,
+              Decimal.ROUND_HALF_UP
+            )
+          )
+        : null,
+      costoParcial: Number(
+        calculation.costoParcial.toFixed(4, Decimal.ROUND_HALF_UP)
+      )
     });
-
-    onChange({ ...sublevel, items: updatedItems });
-  };
-
-  const handleDelete = (id: string) => {
-    onChange({ ...sublevel, items: sublevel.items.filter((item) => item.id !== id) });
-  };
+  });
 
   return (
     <section
-      className={`space-y-4 rounded-xl border p-4 ${appearance.container}`}
+      className={`space-y-6 rounded-xl border p-4 ${appearance.container}`}
     >
       <header className="flex items-center justify-between">
         <div>
@@ -364,320 +543,270 @@ function SupplySublevelSection({
             {sublevel.description}
           </p>
         </div>
-        <span className="text-base font-semibold text-inta-green">
-          {currencyFormatter.format(subtotal)}
+        <span
+          className={`text-base font-semibold ${
+            calculation.costoParcial ? "text-inta-green" : "text-slate-500"
+          }`}
+        >
+          {calculation.costoParcial
+            ? formatCurrencyDecimal(calculation.costoParcial)
+            : "—"}
         </span>
       </header>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className={`${appearance.tableHead} text-left`}>
-            <tr>
-              <th
-                colSpan={5}
-                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${appearance.header}`}
-              >
-                Referencia del insumo
-              </th>
-              <th
-                colSpan={1}
-                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${appearance.header}`}
-              >
-                Cantidad por determinación
-              </th>
-              <th
-                colSpan={2}
-                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${appearance.header}`}
-              >
-                Costo por determinación
-              </th>
-              <th
-                rowSpan={2}
-                className={`px-3 py-2 text-xs font-semibold uppercase tracking-wide ${appearance.header}`}
-              >
-                Acciones
-              </th>
-            </tr>
-            <tr>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+      <form onSubmit={handleLog} className="space-y-6">
+        <div
+          className={`space-y-4 rounded-xl border border-dashed p-4 ${appearance.form}`}
+        >
+          <fieldset className="space-y-4">
+            <legend
+              className={`text-sm font-semibold uppercase tracking-wide ${appearance.header}`}
+            >
+              Referencia del insumo
+            </legend>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={`flex flex-col text-sm ${appearance.description}`}>
                 Insumo
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Unidad de medida
-                <span className="block text-xs font-normal text-slate-600">
-                  Es la unidad de medida en la que se distribuye el insumo.
-                </span>
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                <input
+                  type="text"
+                  {...register("insumo")}
+                  className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  placeholder="Reactivo, filtro, vial"
+                />
+                {errors.insumo ? (
+                  <span className="mt-1 text-xs text-red-600">
+                    {errors.insumo.message}
+                  </span>
+                ) : (
+                  <span className="mt-1 text-xs text-slate-500">
+                    Nombre del material o reactivo.
+                  </span>
+                )}
+              </label>
+              <label className={`flex flex-col text-sm ${appearance.description}`}>
                 Formato de presentación
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Cantidad según formato de presentación
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Precio actualizado de formato de compra
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Cantidad utilizada en la determinación
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Precio unitario según unidad de medida
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Costo de insumo en la determinación
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {sublevel.items.length === 0 ? (
-              <tr>
-                <td
-                  colSpan={9}
-                  className="px-3 py-6 text-center text-sm text-slate-500"
+                <input
+                  type="text"
+                  {...register("formatoPresentacion")}
+                  className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  placeholder="Pote, frasco, bolsa, kit"
+                />
+                {errors.formatoPresentacion ? (
+                  <span className="mt-1 text-xs text-red-600">
+                    {errors.formatoPresentacion.message}
+                  </span>
+                ) : (
+                  <span className="mt-1 text-xs text-slate-500">
+                    Describe el contenedor o formato de compra.
+                  </span>
+                )}
+              </label>
+              <label className={`flex flex-col text-sm ${appearance.description}`}>
+                Unidad base
+                <select
+                  {...register("uomBase")}
+                  className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
                 >
-                  Detalla cada insumo consumido por muestra para proyectar el
-                  costo.
-                </td>
-              </tr>
-            ) : null}
-            {sublevel.items.map((item) => (
-              <tr key={item.id}>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    value={item.item}
-                    onChange={(event) =>
-                      handleItemChange(item.id, "item", event.target.value)
-                    }
-                    className="w-56 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    value={item.unitOfMeasure}
-                    onChange={(event) =>
-                      handleItemChange(
-                        item.id,
-                        "unitOfMeasure",
-                        event.target.value
-                      )
-                    }
-                    className="w-40 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                  <p className="mt-1 text-xs text-slate-500">
-                    Es la unidad de medida en la que se distribuye el insumo.
-                  </p>
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    value={item.presentationFormat}
-                    onChange={(event) =>
-                      handleItemChange(
-                        item.id,
-                        "presentationFormat",
-                        event.target.value
-                      )
-                    }
-                    className="w-48 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.001"
-                    value={item.presentationQuantity}
-                    onChange={(event) =>
-                      handleItemChange(
-                        item.id,
-                        "presentationQuantity",
-                        event.target.value
-                      )
-                    }
-                    className="w-32 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                  <p className="mt-1 text-xs text-slate-500">
-                    Expresado en {item.unitOfMeasure || "la misma unidad"}.
-                  </p>
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={item.presentationPrice}
-                    onChange={(event) =>
-                      handleItemChange(
-                        item.id,
-                        "presentationPrice",
-                        event.target.value
-                      )
-                    }
-                    className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.001"
-                    value={item.determinationQuantity}
-                    onChange={(event) =>
-                      handleItemChange(
-                        item.id,
-                        "determinationQuantity",
-                        event.target.value
-                      )
-                    }
-                    className="w-32 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                  <p className="mt-1 text-xs text-slate-500">
-                    Utiliza la misma unidad declarada anteriormente.
-                  </p>
-                </td>
-                <td className="px-3 py-2 text-right font-medium">
-                  {currencyFormatter.format(
-                    calculateSupplyItemUnitPrice(item)
-                  )}
-                </td>
-                <td className="px-3 py-2 text-right font-semibold text-inta-green">
-                  {currencyFormatter.format(calculateSupplyItemCost(item))}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item.id)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${appearance.badge}`}
-                  >
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+                  {supplyUnitOptions.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unitLabels[unit]}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 text-xs text-slate-500">
+                  Unidad en la que se compra el insumo.
+                </span>
+              </label>
+              <label className={`flex flex-col text-sm ${appearance.description}`}>
+                Cantidad según presentación
+                <input
+                  type="number"
+                  step="0.0001"
+                  min={0}
+                  {...register("cantidadPresentacion", { valueAsNumber: true })}
+                  className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  placeholder="Ej. 0,5"
+                />
+                {errors.cantidadPresentacion ? (
+                  <span className="mt-1 text-xs text-red-600">
+                    {errors.cantidadPresentacion.message}
+                  </span>
+                ) : (
+                  <span className="mt-1 text-xs text-slate-500">
+                    En la misma unidad base declarada.
+                  </span>
+                )}
+              </label>
+              <label className={`flex flex-col text-sm ${appearance.description}`}>
+                Precio de presentación (ARS)
+                <input
+                  type="number"
+                  step="0.01"
+                  min={0}
+                  {...register("precioPresentacion", { valueAsNumber: true })}
+                  className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  placeholder="Precio de reposición vigente"
+                />
+                {errors.precioPresentacion ? (
+                  <span className="mt-1 text-xs text-red-600">
+                    {errors.precioPresentacion.message}
+                  </span>
+                ) : (
+                  <span className="mt-1 text-xs text-slate-500">
+                    Utiliza el precio de reposición del trimestre.
+                  </span>
+                )}
+              </label>
+            </div>
+          </fieldset>
 
-      <div
-        className={`space-y-3 rounded-xl border border-dashed p-4 ${appearance.form}`}
-      >
-        <h4 className={`text-sm font-semibold ${appearance.header}`}>
-          Agregar un nuevo insumo directo
-        </h4>
-        <div className="grid gap-3 md:grid-cols-3 lg:grid-cols-6">
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Ítem
-            <input
-              type="text"
-              value={draft.item}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, item: event.target.value }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Ej. Reactivo, filtro, vial"
-            />
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Unidad de medida
-            <input
-              type="text"
-              value={draft.unitOfMeasure}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, unitOfMeasure: event.target.value }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Litros, gramos, unidades"
-            />
-            <span className="mt-1 text-xs text-slate-500">
-              Es la unidad de medida en la que se distribuye el insumo.
-            </span>
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Formato de presentación
-            <input
-              type="text"
-              value={draft.presentationFormat}
-              onChange={(event) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  presentationFormat: event.target.value
-                }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Ej. Pote, frasco, bolsa"
-            />
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Cantidad según formato de presentación
-            <input
-              type="number"
-              min={0}
-              step="0.001"
-              value={draft.presentationQuantity}
-              onChange={(event) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  presentationQuantity: event.target.value
-                }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Ej. 0,5"
-            />
-            <span className="mt-1 text-xs text-slate-500">
-              Utiliza la misma unidad declarada anteriormente.
-            </span>
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Precio actualizado de formato de compra
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={draft.presentationPrice}
-              onChange={(event) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  presentationPrice: event.target.value
-                }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Valor de referencia"
-            />
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Cantidad utilizada en la determinación
-            <input
-              type="number"
-              min={0}
-              step="0.001"
-              value={draft.determinationQuantity}
-              onChange={(event) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  determinationQuantity: event.target.value
-                }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Ej. 0,25"
-            />
-            <span className="mt-1 text-xs text-slate-500">
-              Expresa la cantidad en la misma unidad de medida.
-            </span>
-          </label>
+          <fieldset className="space-y-4">
+            <legend
+              className={`text-sm font-semibold uppercase tracking-wide ${appearance.header}`}
+            >
+              Cantidad por determinación
+            </legend>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className={`flex flex-col text-sm ${appearance.description}`}>
+                Unidad de uso
+                <select
+                  {...register("uomUso")}
+                  className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                >
+                  {supplyUnitOptions.map((unit) => (
+                    <option key={unit} value={unit}>
+                      {unitLabels[unit]}
+                    </option>
+                  ))}
+                </select>
+                <span className="mt-1 text-xs text-slate-500">
+                  Unidad con la que dosificas el insumo en la práctica.
+                </span>
+              </label>
+              <label className={`flex flex-col text-sm ${appearance.description}`}>
+                Cantidad utilizada
+                <input
+                  type="number"
+                  step="0.0001"
+                  min={0}
+                  {...register("cantidadUsada", { valueAsNumber: true })}
+                  className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  placeholder="Ej. 0,4"
+                />
+                {errors.cantidadUsada ? (
+                  <span className="mt-1 text-xs text-red-600">
+                    {errors.cantidadUsada.message}
+                  </span>
+                ) : (
+                  <span className="mt-1 text-xs text-slate-500">
+                    Expresada en la unidad de uso.
+                  </span>
+                )}
+              </label>
+              <label className={`flex flex-col text-sm ${appearance.description}`}>
+                Merma (factor opcional)
+                <input
+                  type="number"
+                  step="0.001"
+                  min={0}
+                  max={1}
+                  {...register("mermaFactor", { valueAsNumber: true })}
+                  className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  placeholder="Ej. 0,02"
+                />
+                {errors.mermaFactor ? (
+                  <span className="mt-1 text-xs text-red-600">
+                    {errors.mermaFactor.message}
+                  </span>
+                ) : (
+                  <span className="mt-1 text-xs text-slate-500">
+                    Entre 0 y 1. Ej.: 0,02 = 2% adicional.
+                  </span>
+                )}
+              </label>
+            </div>
+          </fieldset>
         </div>
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-inta-blue px-3 py-2 text-sm font-medium text-white transition hover:bg-inta-blue/90"
-          >
-            <PlusIcon className="h-4 w-4" /> Agregar insumo
-          </button>
+
+        {calculation.warning ? (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            {calculation.warning}
+          </div>
+        ) : null}
+
+        <div className="space-y-2 rounded-xl border border-slate-200 bg-white/80 p-4 shadow-sm">
+          <h4 className={`text-sm font-semibold ${appearance.header}`}>
+            Resultados del cálculo
+          </h4>
+          <dl className="grid gap-3 text-sm md:grid-cols-2">
+            <div className="flex items-center justify-between gap-4">
+              <dt className="font-medium text-slate-600">Precio unitario</dt>
+              <dd className="text-base font-semibold text-slate-900">
+                {calculation.precioUnitario
+                  ? `${formatCurrencyDecimal(calculation.precioUnitario)} / ${uomBase}`
+                  : "—"}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between gap-4">
+              <dt className="font-medium text-slate-600">Costo parcial</dt>
+              <dd
+                className={`text-base font-semibold ${
+                  calculation.costoParcial ? "text-inta-green" : "text-slate-500"
+                }`}
+              >
+                {calculation.costoParcial
+                  ? formatCurrencyDecimal(calculation.costoParcial)
+                  : "—"}
+              </dd>
+            </div>
+          </dl>
+          <p className="text-xs text-slate-600">
+            Cantidad efectiva:{" "}
+            {calculation.cantidadEfectiva
+              ? `${formatDecimal(calculation.cantidadEfectiva)} ${uomUso}`
+              : "—"}
+            {uomUso !== uomBase && calculation.cantidadEfectivaBase
+              ? ` (equiv. ${formatDecimal(calculation.cantidadEfectivaBase)} ${uomBase})`
+              : ""}
+          </p>
         </div>
-      </div>
+
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          {copyStatus === "success" ? (
+            <p className="text-sm text-inta-green">
+              Resultados copiados al portapapeles.
+            </p>
+          ) : null}
+          {copyStatus === "error" ? (
+            <p className="text-sm text-red-600">
+              No fue posible copiar los resultados.
+            </p>
+          ) : null}
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              type="button"
+              onClick={() => handleCopy()}
+              disabled={!canExport}
+              className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition ${
+                canExport ? "bg-inta-blue hover:bg-inta-blue/90" : "bg-slate-400"
+              }`}
+            >
+              Copiar resultados
+            </button>
+            <button
+              type="submit"
+              disabled={!canExport}
+              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                canExport
+                  ? "border border-inta-blue text-inta-blue hover:bg-inta-blue/10"
+                  : "border border-slate-300 text-slate-400"
+              }`}
+            >
+              Log a consola
+            </button>
+          </div>
+        </div>
+      </form>
     </section>
   );
 }

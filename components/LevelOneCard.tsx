@@ -34,11 +34,14 @@ const supplyUnitOptions = ["g", "mg", "kg", "mL", "L", "unidad"] as const;
 const supplyUnitEnum = z.enum(supplyUnitOptions);
 
 const finiteNumber = (message: string) =>
-  z
-    .number({ invalid_type_error: message })
-    .refine((value) => Number.isFinite(value), {
-      message: "Ingresa un número válido"
-    });
+  z.number({ invalid_type_error: message }).superRefine((value, ctx) => {
+    if (!Number.isFinite(value)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Ingresa un número válido"
+      });
+    }
+  });
 
 const supplyCalculatorSchema = z.object({
   insumo: z.string().min(1, "Ingresa el nombre del insumo"),

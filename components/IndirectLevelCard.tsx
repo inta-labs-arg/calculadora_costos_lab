@@ -1,5 +1,9 @@
 "use client";
 
+import { zodResolver } from "@hookform/resolvers/zod";
+import { addMonths, differenceInDays, differenceInMonths, getDaysInMonth } from "date-fns";
+import Decimal from "decimal.js";
+import { useForm } from "react-hook-form";
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { z } from "zod";
 import {
@@ -50,6 +54,71 @@ const indirectEquipmentSchema = z.object({
     .number({ invalid_type_error: "Ingresa las determinaciones mensuales" })
     .gt(0, "Las determinaciones deben ser mayores a cero")
 });
+
+const sanitizeNaN = <T extends z.ZodTypeAny>(schema: T) =>
+  z.preprocess((value) => {
+    if (typeof value === "number" && Number.isNaN(value)) {
+      return undefined;
+    }
+
+    return value;
+  }, schema);
+
+const maintenanceFormSchema = z
+  .object({
+    ctm: sanitizeNaN(
+      z
+        .number({
+          invalid_type_error: "Ingresá el costo total de mantenimiento (CTM)"
+        })
+        .gt(0, "El CTM debe ser mayor a cero")
+    ),
+    fechaInicio: z.preprocess(
+      (value) =>
+        value instanceof Date && !Number.isNaN(value.getTime())
+          ? value
+          : undefined,
+      z.date({ required_error: "Ingresá la fecha de inicio" })
+    ),
+    fechaFin: z.preprocess(
+      (value) =>
+        value instanceof Date && !Number.isNaN(value.getTime())
+          ? value
+          : undefined,
+      z.date({ required_error: "Ingresá la fecha de fin" })
+    ),
+    detMes: sanitizeNaN(
+      z
+        .number({
+          invalid_type_error:
+            "Ingresá las determinaciones mensuales promedio (detMes)"
+        })
+        .gt(0, "Las determinaciones deben ser mayores a cero")
+    ),
+    dispFactor: sanitizeNaN(
+      z
+        .number({
+          invalid_type_error: "Ingresá el factor de disponibilidad"
+        })
+        .gt(0, "El factor de disponibilidad debe ser mayor a 0")
+        .lte(1, "El factor de disponibilidad no puede superar 1")
+    ),
+    ipcFactor: sanitizeNaN(
+      z
+        .number({ invalid_type_error: "Ingresá el factor de IPC" })
+        .gte(0, "El IPC no puede ser negativo")
+    ).optional()
+  })
+  .refine(
+    (data) =>
+      data.fechaInicio && data.fechaFin && data.fechaFin > data.fechaInicio,
+    {
+      message: "La fecha fin debe ser posterior a la fecha inicio",
+      path: ["fechaFin"]
+    }
+  );
+
+type MaintenanceFormValues = z.infer<typeof maintenanceFormSchema>;
 
 type SublevelAppearance = {
   container: string;
@@ -234,6 +303,19 @@ export function IndirectLevelCard({
             levelTwoSublevels.has(sublevel.id);
 
           if (sublevel.type === "shared-resource") {
+            if (sublevel.id === maintenanceSublevelId) {
+              return (
+                <MaintenanceEquipmentSection
+                  key={sublevel.id}
+                  sublevel={sublevel}
+                  onChange={onSublevelChange}
+                  appearance={appearance}
+                  globalDeterminations={globalDeterminations}
+                  useGlobalDeterminations={useGlobalDeterminations}
+                />
+              );
+            }
+
             return (
               <SharedResourceSublevelSection
                 key={sublevel.id}
@@ -298,8 +380,15 @@ interface SharedResourceSublevelSectionProps {
   useGlobalDeterminations: boolean;
 }
 
+interface MaintenanceEquipmentSectionProps
+  extends SharedResourceSublevelSectionProps {}
+
 const maintenanceSublevelId = "mantenimientoEquipamiento";
 const infrastructureSublevelId = "infraestructura";
+const maintenanceResultItemId = "maintenance-calculation";
+const numberFormatter = new Intl.NumberFormat("es-AR", {
+  maximumFractionDigits: 4
+});
 
 const sublevelTooltips: Partial<
   Record<IndirectSublevelState["id"], { title: string; ariaLabel?: string }>
@@ -739,6 +828,535 @@ function SharedResourceSublevelSection({
       </form>
 
       {error ? <p className="text-sm text-rose-600">{error}</p> : null}
+    </section>
+  );
+}
+
+type MaintenanceCalculationResult = {
+  ready: boolean;
+  months: Decimal | null;
+  shortPeriod: boolean;
+  ctmAdjusted: Decimal | null;
+  cmm: Decimal | null;
+  cam: Decimal | null;
+  effectiveDeterminations: Decimal | null;
+  ipd: Decimal | null;
+  detWarning: boolean;
+  monthsInteger: number;
+  daysRemainder: number;
+  baseMonthDays: number;
+};
+
+function MaintenanceEquipmentSection({
+  sublevel,
+  onChange,
+  appearance,
+  globalDeterminations,
+  useGlobalDeterminations
+}: MaintenanceEquipmentSectionProps) {
+  const subtotal = useMemo(
+    () => calculateIndirectSublevelSubtotal(sublevel),
+    [sublevel]
+  );
+
+  const {
+    register,
+    handleSubmit,
+    watch,
+    setValue,
+    resetField,
+    formState: { errors, isValid }
+  } = useForm<MaintenanceFormValues>({
+    resolver: zodResolver(maintenanceFormSchema),
+    mode: "onChange",
+    defaultValues: {
+      dispFactor: 1,
+      ipcFactor: 1,
+      detMes:
+        useGlobalDeterminations && globalDeterminations > 0
+          ? globalDeterminations
+          : undefined
+    }
+  });
+
+  useEffect(() => {
+    if (!useGlobalDeterminations) {
+      return;
+    }
+
+    if (globalDeterminations > 0) {
+      setValue("detMes", globalDeterminations, {
+        shouldDirty: false,
+        shouldValidate: true
+      });
+    } else {
+      resetField("detMes", { defaultValue: undefined });
+    }
+  }, [globalDeterminations, resetField, setValue, useGlobalDeterminations]);
+
+  const ctm = watch("ctm");
+  const fechaInicio = watch("fechaInicio");
+  const fechaFin = watch("fechaFin");
+  const detMes = watch("detMes");
+  const dispFactor = watch("dispFactor");
+  const ipcFactor = watch("ipcFactor");
+
+  const results = useMemo<MaintenanceCalculationResult>(() => {
+    const baseResult: MaintenanceCalculationResult = {
+      ready: false,
+      months: null,
+      shortPeriod: false,
+      ctmAdjusted: null,
+      cmm: null,
+      cam: null,
+      effectiveDeterminations: null,
+      ipd: null,
+      detWarning: false,
+      monthsInteger: 0,
+      daysRemainder: 0,
+      baseMonthDays: 0
+    };
+
+    const isValidNumber = (value: unknown): value is number =>
+      typeof value === "number" && Number.isFinite(value);
+    const isValidDate = (value: unknown): value is Date =>
+      value instanceof Date && !Number.isNaN(value.getTime());
+
+    if (
+      !isValidNumber(ctm) ||
+      !isValidDate(fechaInicio) ||
+      !isValidDate(fechaFin) ||
+      !isValidNumber(detMes) ||
+      !isValidNumber(dispFactor)
+    ) {
+      return baseResult;
+    }
+
+    if (fechaFin <= fechaInicio) {
+      return baseResult;
+    }
+
+    const monthsInteger = differenceInMonths(fechaFin, fechaInicio);
+    const anchorDate = addMonths(fechaInicio, monthsInteger);
+    const daysRemainder = differenceInDays(fechaFin, anchorDate);
+    const baseMonthDays = getDaysInMonth(anchorDate);
+    const fractionRaw =
+      baseMonthDays === 0 ? 0 : daysRemainder / baseMonthDays;
+    const fraction = Math.min(Math.max(fractionRaw, 0), 0.99999);
+    const months = new Decimal(monthsInteger).plus(fraction);
+
+    if (months.lte(0)) {
+      return baseResult;
+    }
+
+    const shortPeriod = months.lt(0.1);
+    const ctmDecimal = new Decimal(ctm);
+    const ipcValue =
+      isValidNumber(ipcFactor) && ipcFactor !== undefined ? ipcFactor : undefined;
+    const ctmAdjusted =
+      ipcValue !== undefined && ipcValue > 0
+        ? ctmDecimal.times(ipcValue)
+        : ctmDecimal;
+
+    const cmm = ctmAdjusted.dividedBy(months);
+    const cam = cmm.times(12);
+
+    const detMesDecimal = new Decimal(detMes);
+    const dispDecimal = new Decimal(dispFactor);
+    const effectiveDeterminations = detMesDecimal.times(dispDecimal);
+    const detWarning = detMesDecimal.lte(0);
+
+    const ipd =
+      detWarning || effectiveDeterminations.lte(0)
+        ? null
+        : cmm.dividedBy(effectiveDeterminations);
+
+    return {
+      ready: true,
+      months,
+      shortPeriod,
+      ctmAdjusted,
+      cmm,
+      cam,
+      effectiveDeterminations,
+      ipd,
+      detWarning,
+      monthsInteger,
+      daysRemainder,
+      baseMonthDays
+    };
+  }, [ctm, fechaInicio, fechaFin, detMes, dispFactor, ipcFactor]);
+
+  useEffect(() => {
+    if (
+      !results.ready ||
+      !results.cmm ||
+      !results.effectiveDeterminations ||
+      results.ipd === null
+    ) {
+      if (sublevel.items.length > 0) {
+        onChange({ ...sublevel, items: [] });
+      }
+      return;
+    }
+
+    const monthlyCostValue = results.cmm
+      .toDecimalPlaces(6, Decimal.ROUND_HALF_UP)
+      .toNumber();
+    const determinationsValue = results.effectiveDeterminations
+      .toDecimalPlaces(6, Decimal.ROUND_HALF_UP)
+      .toNumber();
+
+    const currentItem = sublevel.items.find(
+      (item) => item.id === maintenanceResultItemId
+    );
+
+    if (
+      currentItem &&
+      Math.abs(currentItem.monthlyCost - monthlyCostValue) < 1e-6 &&
+      Math.abs(currentItem.determinations - determinationsValue) < 1e-6
+    ) {
+      return;
+    }
+
+    onChange({
+      ...sublevel,
+      items: [
+        {
+          id: maintenanceResultItemId,
+          concept: "Prorrateo mantenimiento de equipamiento",
+          monthlyCost: monthlyCostValue,
+          determinations: determinationsValue,
+          isFixed: true
+        }
+      ]
+    });
+  }, [onChange, results, sublevel]);
+
+  const handleLog = handleSubmit((data) => {
+    console.log(
+      "Nivel 2 c.3) Mantenimiento de Equipamiento (payload validado)",
+      data
+    );
+  });
+
+  const monthsDisplay =
+    results.ready && results.months
+      ? numberFormatter.format(
+          results.months
+            .toDecimalPlaces(4, Decimal.ROUND_HALF_UP)
+            .toNumber()
+        )
+      : "—";
+  const effectiveDeterminationsDisplay =
+    results.ready && results.effectiveDeterminations
+      ? numberFormatter.format(
+          results.effectiveDeterminations
+            .toDecimalPlaces(4, Decimal.ROUND_HALF_UP)
+            .toNumber()
+        )
+      : "—";
+  const ctmAdjustedDisplay =
+    results.ready && results.ctmAdjusted
+      ? currencyFormatter.format(results.ctmAdjusted.toNumber())
+      : "—";
+  const cmmDisplay =
+    results.ready && results.cmm
+      ? currencyFormatter.format(results.cmm.toNumber())
+      : "—";
+  const camDisplay =
+    results.ready && results.cam
+      ? currencyFormatter.format(results.cam.toNumber())
+      : "—";
+  const ipdDisplay =
+    results.ready && results.ipd
+      ? currencyFormatter.format(results.ipd.toNumber())
+      : "—";
+  const ipdDisabled =
+    !results.ready || results.ipd === null || !results.effectiveDeterminations;
+  const ipdTooltip = results.detWarning
+    ? "Ingresá un detMes mayor a cero para habilitar la incidencia por determinación."
+    : "Completá los campos obligatorios para obtener la incidencia por determinación.";
+
+  const showGlobalDeterminationsWarning =
+    useGlobalDeterminations && globalDeterminations <= 0;
+
+  return (
+    <section
+      className={`space-y-4 rounded-xl border p-4 ${appearance.container}`}
+    >
+      <header className="space-y-2">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className={`text-lg font-semibold ${appearance.header}`}>
+              {sublevel.name}
+            </h3>
+            <InfoIcon
+              className={`h-4 w-4 ${appearance.header}`}
+              aria-label="Ejemplos de mantenimiento"
+              title="Ejemplos: limpieza, ajustes, repuestos"
+            />
+          </div>
+          <span className="text-base font-semibold text-inta-green">
+            {currencyFormatter.format(subtotal)}
+          </span>
+        </div>
+        <p className={`text-sm ${appearance.description}`}>
+          {sublevel.description}
+        </p>
+        <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-900">
+          <InfoIcon
+            className="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
+            aria-hidden="true"
+          />
+          <p className="leading-snug">
+            No incluir calibración ya contemplada en 1.3 Equipamiento específico.
+            Aquí solo mantenimiento preventivo/correctivo (honorarios + repuestos).
+          </p>
+        </div>
+      </header>
+
+      <div className="grid gap-6 lg:grid-cols-2">
+        <form
+          className={`space-y-4 rounded-lg border p-4 ${appearance.form}`}
+          onSubmit={handleLog}
+        >
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col space-y-1">
+              <span>CTM (ARS)</span>
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                placeholder="24000"
+                className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                {...register("ctm", { valueAsNumber: true })}
+              />
+              {errors.ctm ? (
+                <span className="text-xs text-rose-600">
+                  {errors.ctm.message}
+                </span>
+              ) : (
+                <span className="text-xs text-emerald-700">
+                  Costo total de mantenimiento para el período analizado.
+                </span>
+              )}
+            </label>
+            <label className="flex flex-col space-y-1">
+              <span>Factor de disponibilidad (0 a 1)</span>
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step="0.01"
+                placeholder="1 = 100%"
+                className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                {...register("dispFactor", { valueAsNumber: true })}
+              />
+              {errors.dispFactor ? (
+                <span className="text-xs text-rose-600">
+                  {errors.dispFactor.message}
+                </span>
+              ) : (
+                <span className="text-xs text-emerald-700">
+                  Considerá la disponibilidad real del equipo.
+                </span>
+              )}
+            </label>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="flex flex-col space-y-1">
+              <span>Fecha de inicio</span>
+              <input
+                type="date"
+                className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                {...register("fechaInicio", { valueAsDate: true })}
+              />
+              {errors.fechaInicio ? (
+                <span className="text-xs text-rose-600">
+                  {errors.fechaInicio.message}
+                </span>
+              ) : (
+                <span className="text-xs text-emerald-700">
+                  Día desde el cual aplica el contrato o servicio.
+                </span>
+              )}
+            </label>
+            <label className="flex flex-col space-y-1">
+              <span>Fecha de fin</span>
+              <input
+                type="date"
+                className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                {...register("fechaFin", { valueAsDate: true })}
+              />
+              {errors.fechaFin ? (
+                <span className="text-xs text-rose-600">
+                  {errors.fechaFin.message}
+                </span>
+              ) : (
+                <span className="text-xs text-emerald-700">
+                  Día de finalización del servicio o contrato.
+                </span>
+              )}
+            </label>
+          </div>
+
+          <label className="flex flex-col space-y-1">
+            <span>
+              Determinaciones mensuales promedio (detMes)
+              {useGlobalDeterminations ? " (DM global)" : null}
+            </span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              readOnly={useGlobalDeterminations && globalDeterminations > 0}
+              className={`rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue ${
+                useGlobalDeterminations && globalDeterminations > 0
+                  ? "bg-slate-100"
+                  : ""
+              }`}
+              placeholder="300"
+              {...register("detMes", { valueAsNumber: true })}
+            />
+            {errors.detMes ? (
+              <span className="text-xs text-rose-600">
+                {errors.detMes.message}
+              </span>
+            ) : useGlobalDeterminations ? (
+              <span className="text-xs text-emerald-700">
+                Se utiliza el valor global de determinaciones mensuales para el prorrateo.
+              </span>
+            ) : (
+              <span className="text-xs text-emerald-700">
+                Promedio mensual de determinaciones soportadas por el equipo.
+              </span>
+            )}
+            {showGlobalDeterminationsWarning ? (
+              <span className="text-xs text-amber-700">
+                Definí la base global de prorrateo en la cabecera de Nivel 2 para precargar este campo.
+              </span>
+            ) : null}
+          </label>
+
+          <label className="flex flex-col space-y-1">
+            <span className="flex items-center gap-2">
+              Ajuste IPC manual (opcional)
+              <InfoIcon
+                className="h-4 w-4 text-emerald-700"
+                aria-label="Ingresá el factor acumulado de IPC (opcional)."
+                title="Ingresá el factor acumulado de IPC (opcional). Ver IPC INDEC y calculadora de variaciones."
+              />
+            </span>
+            <input
+              type="number"
+              min={0}
+              step="0.01"
+              placeholder="1.00"
+              className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+              {...register("ipcFactor", { valueAsNumber: true })}
+            />
+            {errors.ipcFactor ? (
+              <span className="text-xs text-rose-600">
+                {errors.ipcFactor.message}
+              </span>
+            ) : (
+              <span className="text-xs text-emerald-700">
+                Ingresá el factor acumulado de IPC (opcional).{" "}
+                <a
+                  className="font-medium text-inta-blue underline decoration-dotted underline-offset-2"
+                  href="https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31"
+                  target="_blank"
+                  rel="noreferrer noopener"
+                >
+                  Ver IPC INDEC y calculadora de variaciones
+                </a>
+                .
+              </span>
+            )}
+          </label>
+
+          <div className="flex justify-end">
+            <button
+              type="submit"
+              className="rounded-md bg-inta-blue px-3 py-2 text-sm font-medium text-white transition hover:bg-inta-blue/90 disabled:cursor-not-allowed disabled:bg-slate-300"
+              disabled={!isValid}
+            >
+              Registrar payload en consola
+            </button>
+          </div>
+        </form>
+
+        <aside className={`space-y-4 rounded-lg border p-4 ${appearance.form}`}>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-emerald-900">
+                Meses prorrateados exactos (M)
+              </span>
+              <span className="font-semibold text-emerald-800">
+                {monthsDisplay}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-emerald-900">CTM ajustado</span>
+              <span className="font-semibold text-emerald-800">
+                {ctmAdjustedDisplay}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-emerald-900">
+                Costo mensual de mantenimiento (CMM)
+              </span>
+              <span className="font-semibold text-emerald-800">
+                {cmmDisplay}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-emerald-900">
+                Costo anual de mantenimiento (CAM)
+              </span>
+              <span className="font-semibold text-emerald-800">
+                {camDisplay}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-emerald-900">
+                Determinaciones efectivas (detMes × dispFactor)
+              </span>
+              <span className="font-semibold text-emerald-800">
+                {effectiveDeterminationsDisplay}
+              </span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-medium text-emerald-900">
+                Incidencia por determinación (IPD)
+              </span>
+              <span
+                className={`font-semibold ${
+                  ipdDisabled ? "text-slate-500" : "text-emerald-800"
+                }`}
+                title={ipdDisabled ? ipdTooltip : undefined}
+              >
+                {ipdDisplay}
+              </span>
+            </div>
+          </div>
+
+          {results.shortPeriod ? (
+            <p className="text-sm text-amber-700">
+              Período demasiado corto, verifique fechas (M &lt; 0,1 meses).
+            </p>
+          ) : null}
+
+          {results.detWarning ? (
+            <p className="text-sm text-amber-700">
+              Ingresá un detMes mayor a cero para obtener la incidencia por
+              determinación.
+            </p>
+          ) : null}
+        </aside>
+      </div>
     </section>
   );
 }

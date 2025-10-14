@@ -12,12 +12,15 @@ import {
   EquipmentSublevelState,
   LaborCostItem,
   LaborSublevelState,
+  SupplyCostItem,
   SupplySublevelState,
   SublevelState,
   calculateEquipmentItemCost,
   calculateEquipmentSublevelTotals,
   calculateSublevelSubtotal,
   calculateLaborItemCost,
+  calculateSupplyItemCost,
+  calculateSupplyItemUnitPrice,
   currencyFormatter
 } from "@/lib/cost-calculation";
 import { ManualOverrideIcon, PlusIcon } from "./icons";
@@ -357,17 +360,22 @@ function SupplySublevelSection({
     }
   }, [dirtyFields.uomUso, setValue, uomBase, uomUso]);
 
-  const [copyStatus, setCopyStatus] = useState<"idle" | "success" | "error">(
+  const [addStatus, setAddStatus] = useState<"idle" | "success" | "error">(
     "idle"
   );
 
   useEffect(() => {
-    if (copyStatus === "idle") {
+    if (addStatus === "idle") {
       return;
     }
-    const timeout = window.setTimeout(() => setCopyStatus("idle"), 3000);
+    const timeout = window.setTimeout(() => setAddStatus("idle"), 3000);
     return () => window.clearTimeout(timeout);
-  }, [copyStatus]);
+  }, [addStatus]);
+
+  const subtotal = useMemo(
+    () => calculateSublevelSubtotal(sublevel),
+    [sublevel]
+  );
 
   const calculation = useMemo(() => {
     if (!isValid) {
@@ -452,83 +460,52 @@ function SupplySublevelSection({
       Number(value.toFixed(2, Decimal.ROUND_HALF_UP))
     );
 
-  const handleCopy = handleSubmit(async (values) => {
-    if (!canExport || !calculation.precioUnitario || !calculation.costoParcial) {
-      setCopyStatus("error");
-      return;
-    }
-
-    if (!navigator?.clipboard) {
-      setCopyStatus("error");
-      return;
-    }
-
-    const lines = [
-      `Insumo: ${values.insumo}`,
-      `Unidad base: ${values.uomBase}`,
-      `Formato de presentación: ${values.formatoPresentacion}`,
-      `Cantidad presentación: ${formatDecimal(new Decimal(values.cantidadPresentacion))} ${values.uomBase}`,
-      `Precio unitario: ${formatCurrencyDecimal(calculation.precioUnitario)} / ${values.uomBase}`,
-      `Cantidad efectiva (${values.uomUso}): ${formatDecimal(calculation.cantidadEfectiva!)}`
-    ];
-
+  const handleAddItem = handleSubmit((values) => {
     if (
-      values.uomUso !== values.uomBase &&
-      calculation.cantidadEfectivaBase
+      !canExport ||
+      !calculation.precioUnitario ||
+      !calculation.costoParcial ||
+      !calculation.cantidadEfectivaBase
     ) {
-      lines.push(
-        `Cantidad efectiva (${values.uomBase}): ${formatDecimal(calculation.cantidadEfectivaBase)}`
-      );
+      setAddStatus("error");
+      return;
     }
 
-    lines.push(
-      `Costo parcial: ${formatCurrencyDecimal(calculation.costoParcial)}`
+    const determinationQuantity = Number(
+      calculation.cantidadEfectivaBase.toFixed(4, Decimal.ROUND_HALF_UP)
     );
 
-    try {
-      await navigator.clipboard.writeText(lines.join("\n"));
-      setCopyStatus("success");
-    } catch {
-      setCopyStatus("error");
-    }
+    const newItem: SupplyCostItem = {
+      id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      item: values.insumo.trim(),
+      unitOfMeasure: values.uomBase,
+      presentationFormat: values.formatoPresentacion.trim(),
+      presentationQuantity: Number(
+        new Decimal(values.cantidadPresentacion).toFixed(
+          4,
+          Decimal.ROUND_HALF_UP
+        )
+      ),
+      presentationPrice: Number(
+        new Decimal(values.precioPresentacion).toFixed(
+          2,
+          Decimal.ROUND_HALF_UP
+        )
+      ),
+      determinationQuantity
+    };
+
+    const updatedItems = [...sublevel.items, newItem];
+    _onChange({ ...sublevel, items: updatedItems });
+    setAddStatus("success");
   });
 
-  const handleLog = handleSubmit((values) => {
-    if (!canExport || !calculation.precioUnitario || !calculation.costoParcial) {
-      console.warn(
-        "No se registró el costo parcial porque la conversión de unidades es inválida."
-      );
-      return;
-    }
-
-    console.log("Costo parcial de insumo directo", {
-      insumo: values.insumo,
-      uomBase: values.uomBase,
-      formatoPresentacion: values.formatoPresentacion,
-      cantidadPresentacion: values.cantidadPresentacion,
-      precioPresentacion: values.precioPresentacion,
-      uomUso: values.uomUso,
-      cantidadUsada: values.cantidadUsada,
-      mermaFactor: values.mermaFactor ?? 0,
-      precioUnitario: Number(
-        calculation.precioUnitario.toFixed(4, Decimal.ROUND_HALF_UP)
-      ),
-      cantidadEfectiva: Number(
-        calculation.cantidadEfectiva!.toFixed(4, Decimal.ROUND_HALF_UP)
-      ),
-      cantidadEfectivaBase: calculation.cantidadEfectivaBase
-        ? Number(
-            calculation.cantidadEfectivaBase.toFixed(
-              4,
-              Decimal.ROUND_HALF_UP
-            )
-          )
-        : null,
-      costoParcial: Number(
-        calculation.costoParcial.toFixed(4, Decimal.ROUND_HALF_UP)
-      )
+  const handleDeleteItem = (id: string) => {
+    _onChange({
+      ...sublevel,
+      items: sublevel.items.filter((item) => item.id !== id)
     });
-  });
+  };
 
   return (
     <section
@@ -543,18 +520,107 @@ function SupplySublevelSection({
             {sublevel.description}
           </p>
         </div>
-        <span
-          className={`text-base font-semibold ${
-            calculation.costoParcial ? "text-inta-green" : "text-slate-500"
-          }`}
-        >
-          {calculation.costoParcial
-            ? formatCurrencyDecimal(calculation.costoParcial)
-            : "—"}
+        <span className="text-base font-semibold text-inta-green">
+          {currencyFormatter.format(subtotal)}
         </span>
       </header>
 
-      <form onSubmit={handleLog} className="space-y-6">
+      <div className="overflow-x-auto">
+        <table className="min-w-full divide-y divide-slate-200 text-sm">
+          <thead className={`${appearance.tableHead} text-left`}>
+            <tr>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Insumo
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Presentación
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Precio unitario
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Cantidad por determinación
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Costo por determinación
+              </th>
+              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+                Acciones
+              </th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-200">
+            {sublevel.items.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-3 py-6 text-center text-sm text-slate-500"
+                >
+                  Agregá cada insumo para conformar el subtotal del análisis.
+                </td>
+              </tr>
+            ) : null}
+            {sublevel.items.map((item) => {
+              const unitPrice = calculateSupplyItemUnitPrice(item);
+              const cost = calculateSupplyItemCost(item);
+
+              return (
+                <tr key={item.id}>
+                  <td className="px-3 py-2">
+                    <p className="text-sm font-medium text-slate-700">
+                      {item.item}
+                    </p>
+                    <p className="text-xs text-slate-500">
+                      {item.presentationFormat}
+                    </p>
+                  </td>
+                  <td className="px-3 py-2">
+                    <p>{`${formatDecimal(new Decimal(item.presentationQuantity))} ${item.unitOfMeasure}`}</p>
+                    <p className="text-xs text-slate-500">
+                      {currencyFormatter.format(item.presentationPrice)}
+                    </p>
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    {currencyFormatter.format(unitPrice)}
+                  </td>
+                  <td className="px-3 py-2">
+                    {`${formatDecimal(new Decimal(item.determinationQuantity))} ${item.unitOfMeasure}`}
+                  </td>
+                  <td className="px-3 py-2 text-right font-medium text-slate-700">
+                    {currencyFormatter.format(cost)}
+                  </td>
+                  <td className="px-3 py-2 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteItem(item.id)}
+                      className="text-sm font-medium text-red-600 transition hover:text-red-700"
+                    >
+                      Eliminar
+                    </button>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+          <tfoot className="bg-white/70">
+            <tr>
+              <th
+                scope="row"
+                colSpan={4}
+                className="px-3 py-2 text-left text-sm font-semibold text-slate-700"
+              >
+                Subtotal insumos directos
+              </th>
+              <td className="px-3 py-2 text-right text-sm font-semibold text-slate-900">
+                {currencyFormatter.format(subtotal)}
+              </td>
+              <td className="px-3 py-2" />
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+
+      <form onSubmit={handleAddItem} className="space-y-6">
         <div
           className={`space-y-4 rounded-xl border border-dashed p-4 ${appearance.form}`}
         >
@@ -772,37 +838,25 @@ function SupplySublevelSection({
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          {copyStatus === "success" ? (
+          {addStatus === "success" ? (
             <p className="text-sm text-inta-green">
-              Resultados copiados al portapapeles.
+              Insumo agregado a la lista de resultados.
             </p>
           ) : null}
-          {copyStatus === "error" ? (
+          {addStatus === "error" ? (
             <p className="text-sm text-red-600">
-              No fue posible copiar los resultados.
+              No fue posible agregar el insumo.
             </p>
           ) : null}
           <div className="flex flex-wrap items-center gap-3">
             <button
-              type="button"
-              onClick={() => handleCopy()}
+              type="submit"
               disabled={!canExport}
               className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition ${
                 canExport ? "bg-inta-blue hover:bg-inta-blue/90" : "bg-slate-400"
               }`}
             >
-              Copiar resultados
-            </button>
-            <button
-              type="submit"
-              disabled={!canExport}
-              className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
-                canExport
-                  ? "border border-inta-blue text-inta-blue hover:bg-inta-blue/10"
-                  : "border border-slate-300 text-slate-400"
-              }`}
-            >
-              Log a consola
+              Agregar insumo
             </button>
           </div>
         </div>

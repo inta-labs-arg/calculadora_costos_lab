@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  LABOR_MONTHLY_HOURS,
   calculateDirectGroupLevel,
   calculateEquipmentItemCalibration,
   calculateEquipmentItemCost,
@@ -16,6 +17,7 @@ import {
   type SharedResourceCostItem,
   type SupplyCostItem
 } from "@/lib/cost-calculation";
+import { round2 } from "@/lib/money";
 
 describe("calculateSupplyItemCost", () => {
   it("calcula el precio unitario tomando el formato de compra", () => {
@@ -57,14 +59,16 @@ describe("calculateLaborItemCost", () => {
     const item: LaborCostItem = {
       id: "lab-1",
       role: "professional",
-      label: "Profesional investigador",
-      hours: 2.5,
-      rate: 12000,
-      profileCode: "professional",
-      isManualRate: false
+      label: "Profesionales",
+      quantity: 2,
+      totalHours: 40,
+      monthlySalary: 120000
     };
 
-    expect(calculateLaborItemCost(item)).toBe(30000);
+    const hourlyValue = item.monthlySalary / LABOR_MONTHLY_HOURS;
+    const expectedCost = round2(hourlyValue * item.totalHours * item.quantity);
+
+    expect(calculateLaborItemCost(item)).toBe(expectedCost);
   });
 });
 

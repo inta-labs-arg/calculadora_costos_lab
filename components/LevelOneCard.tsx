@@ -21,11 +21,12 @@ import {
   calculateLaborItemCost,
   calculateSupplyItemCost,
   calculateSupplyItemUnitPrice,
-  currencyFormatter
+  currencyFormatter,
+  LABOR_MONTHLY_HOURS
 } from "@/lib/cost-calculation";
-import { ManualOverrideIcon, PlusIcon } from "./icons";
-import { useHourlyRates } from "@/contexts/HourlyRatesContext";
+import { PlusIcon } from "./icons";
 import { appConfig } from "@/lib/app-config";
+import { formatARS, round2 } from "@/lib/money";
 
 interface LevelOneCardProps {
   level: DirectLevelGroupState;
@@ -865,139 +866,144 @@ function SupplySublevelSection({
   );
 }
 
+type LaborEditableField = "quantity" | "totalHours" | "monthlySalary";
+
+type LaborTouchedState = Record<
+  string,
+  Record<LaborEditableField, boolean>
+>;
+
+const createTouchedState = (items: LaborCostItem[]): LaborTouchedState => {
+  return items.reduce<LaborTouchedState>((acc, item) => {
+    acc[item.id] = {
+      quantity: false,
+      totalHours: false,
+      monthlySalary: false
+    };
+    return acc;
+  }, {});
+};
+
 function LaborSublevelSection({
   sublevel,
   onChange,
   appearance
 }: SublevelSectionProps<LaborSublevelState>) {
-  const { items: hourlyRates } = useHourlyRates();
   const subtotal = useMemo(
     () => calculateSublevelSubtotal(sublevel),
     [sublevel]
   );
 
-  const profilesByCode = useMemo(() => {
-    return new Map(hourlyRates.map((profile) => [profile.profileCode, profile]));
-  }, [hourlyRates]);
+  const [touched, setTouched] = useState<LaborTouchedState>(() =>
+    createTouchedState(sublevel.items)
+  );
 
   useEffect(() => {
-    const updated = sublevel.items.map((item) => {
-      if (!item.profileCode) {
-        return item;
-      }
-      const profile = profilesByCode.get(item.profileCode);
-      if (!profile || item.isManualRate) {
-        return item;
-      }
+    setTouched((prev) => {
+      const next: LaborTouchedState = { ...prev };
+      let changed = false;
+      const currentIds = new Set(sublevel.items.map((item) => item.id));
 
-      if (item.rate !== profile.hourlyRateARS) {
-        return {
-          ...item,
-          rate: profile.hourlyRateARS
-        } satisfies LaborCostItem;
-      }
+      sublevel.items.forEach((item) => {
+        if (!next[item.id]) {
+          next[item.id] = {
+            quantity: false,
+            totalHours: false,
+            monthlySalary: false
+          };
+          changed = true;
+        }
+      });
 
-      return item;
+      Object.keys(next).forEach((id) => {
+        if (!currentIds.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
     });
+  }, [sublevel.items]);
 
-    const hasChanges = updated.some(
-      (item, index) => item !== sublevel.items[index]
-    );
-
-    if (hasChanges) {
-      onChange({ ...sublevel, items: updated });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profilesByCode]);
-
-  const updateItem = (
-    id: string,
-    updater: (item: LaborCostItem) => LaborCostItem
-  ) => {
+  const updateItem = (id: string, updates: Partial<LaborCostItem>) => {
     const nextItems = sublevel.items.map((item) =>
-      item.id === id ? updater(item) : item
+      item.id === id ? { ...item, ...updates } : item
     );
     onChange({ ...sublevel, items: nextItems });
   };
 
-  const handleHoursChange = (id: string, value: string) => {
+  const handleNumberChange = <K extends LaborEditableField>(
+    id: string,
+    field: K,
+    value: string
+  ) => {
     const numericValue = Number(value);
-    updateItem(id, (item) => ({
-      ...item,
-      hours: Number.isFinite(numericValue) ? numericValue : 0
-    }));
+    const normalizedValue =
+      value === "" || Number.isNaN(numericValue) ? 0 : numericValue;
+    const sanitizedValue =
+      field === "quantity"
+        ? Math.floor(Math.max(normalizedValue, 0))
+        : Math.max(normalizedValue, 0);
+
+    updateItem(id, { [field]: sanitizedValue } as Pick<LaborCostItem, K>);
   };
 
-  const handleRateChange = (id: string, value: string) => {
-    const numericValue = Number(value);
-    updateItem(id, (item) => ({
-      ...item,
-      rate: Number.isFinite(numericValue) ? numericValue : 0,
-      isManualRate: true
-    }));
-  };
-
-  const handleProfileChange = (id: string, value: string) => {
-    const code = value || null;
-    updateItem(id, (item) => {
-      if (!code) {
-        return {
-          ...item,
-          profileCode: null,
-          isManualRate: true
-        } satisfies LaborCostItem;
-      }
-
-      const profile = profilesByCode.get(code);
-      if (!profile) {
-        return {
-          ...item,
-          profileCode: code,
-          isManualRate: true
-        } satisfies LaborCostItem;
-      }
-
+  const handleBlur = (id: string, field: LaborEditableField) => {
+    setTouched((prev) => {
+      const current = prev[id] ?? {
+        quantity: false,
+        totalHours: false,
+        monthlySalary: false
+      };
       return {
-        ...item,
-        profileCode: profile.profileCode,
-        rate: profile.hourlyRateARS,
-        isManualRate: false
-      } satisfies LaborCostItem;
+        ...prev,
+        [id]: {
+          ...current,
+          [field]: true
+        }
+      };
     });
   };
 
-  const handleResetRate = (id: string) => {
-    updateItem(id, (item) => {
-      if (!item.profileCode) {
-        return { ...item, isManualRate: false };
-      }
-      const profile = profilesByCode.get(item.profileCode);
-      if (!profile) {
-        return { ...item, isManualRate: false };
-      }
+  const errors = useMemo(() => {
+    return sublevel.items.map((item) => ({
+      id: item.id,
+      quantity: item.quantity > 0 ? null : "Debe ser mayor que 0",
+      totalHours: item.totalHours > 0 ? null : "Debe ser mayor que 0",
+      monthlySalary:
+        item.monthlySalary > 0 ? null : "Debe ser mayor que 0"
+    }));
+  }, [sublevel.items]);
 
-      return {
-        ...item,
-        rate: profile.hourlyRateARS,
-        isManualRate: false
-      } satisfies LaborCostItem;
-    });
-  };
+  const errorsById = useMemo(() => {
+    return new Map(errors.map((error) => [error.id, error]));
+  }, [errors]);
 
-  const profileOptions = useMemo(
-    () =>
-      hourlyRates
-        .slice()
-        .sort((a, b) => a.profileName.localeCompare(b.profileName))
-        .map((profile) => ({
-          code: profile.profileCode,
-          name: profile.profileName,
-          rate: profile.hourlyRateARS,
-          from: profile.vigenciaDesdeISO,
-          to: profile.vigenciaHastaISO
-        })),
-    [hourlyRates]
+  const hasBlockingErrors = errors.some((error) =>
+    Boolean(error.quantity || error.totalHours || error.monthlySalary)
   );
+
+  const calculations = useMemo(() => {
+    return new Map(
+      sublevel.items.map((item) => {
+        const hourlyValue =
+          item.monthlySalary > 0
+            ? round2(item.monthlySalary / LABOR_MONTHLY_HOURS)
+            : 0;
+        const cost = calculateLaborItemCost(item);
+        return [item.id, { hourlyValue, cost }] as const;
+      })
+    );
+  }, [sublevel.items]);
+
+  const showGlobalError = hasBlockingErrors &&
+    sublevel.items.some((item) => {
+      const touch = touched[item.id];
+      return Boolean(
+        touch?.quantity || touch?.totalHours || touch?.monthlySalary
+      );
+    });
 
   return (
     <section
@@ -1013,134 +1019,148 @@ function LaborSublevelSection({
           </p>
         </div>
         <span className="text-base font-semibold text-inta-green">
-          {currencyFormatter.format(subtotal)}
+          {formatARS(subtotal)}
         </span>
       </header>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-slate-200 text-sm">
-          <thead className={`${appearance.tableHead} text-left`}>
-            <tr>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Perfil
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Horas por determinación
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Valor por hora/día
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Subtotal
-              </th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-slate-200">
-            {sublevel.items.map((item) => {
-              const selectedProfile = item.profileCode
-                ? profilesByCode.get(item.profileCode)
-                : null;
-              const isManual = item.isManualRate ?? false;
-
-              return (
-                <tr key={item.id}>
-                  <td className="px-3 py-2">
-                    <p className="text-sm font-medium text-slate-700">
-                      {item.label}
-                    </p>
-                    <select
-                      value={item.profileCode ?? ""}
-                      onChange={(event) =>
-                        handleProfileChange(item.id, event.target.value)
-                      }
-                      className="mt-2 w-full rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                    >
-                      <option value="">Seleccioná un perfil</option>
-                      {profileOptions.map((option) => (
-                        <option key={option.code} value={option.code}>
-                          {option.name} · {currencyFormatter.format(option.rate)}
-                        </option>
-                      ))}
-                    </select>
-                    {selectedProfile ? (
-                      <p className="mt-1 text-xs text-slate-500">
-                        Vigente desde {selectedProfile.vigenciaDesdeISO}
-                        {selectedProfile.vigenciaHastaISO
-                          ? ` hasta ${selectedProfile.vigenciaHastaISO}`
-                          : ""}
-                      </p>
-                    ) : null}
-                    {profileOptions.length === 0 ? (
-                      <p className="mt-1 text-xs text-red-600">
-                        Cargá perfiles en la tabla de Valores hora para
-                        habilitar esta selección.
-                      </p>
-                    ) : null}
-                  </td>
-                  <td className="px-3 py-2">
-                    <input
-                      type="number"
-                      min={0}
-                      step="0.25"
-                      value={item.hours}
-                      onChange={(event) =>
-                        handleHoursChange(item.id, event.target.value)
-                      }
-                      className="w-28 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                    />
-                  </td>
-                  <td className="px-3 py-2">
-                    <div className="flex items-center gap-2">
-                      <input
-                        type="number"
-                        min={0}
-                        step="0.01"
-                        value={item.rate}
-                        onChange={(event) =>
-                          handleRateChange(item.id, event.target.value)
-                        }
-                        className="w-32 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                      />
-                      {isManual ? (
-                        <span
-                          title="Valor ajustado manualmente para este ensayo"
-                          className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-1 text-xs font-medium text-amber-800"
-                        >
-                          <ManualOverrideIcon className="h-3.5 w-3.5" /> Manual
-                        </span>
-                      ) : null}
-                    </div>
-                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-slate-500">
-                      {!isManual && selectedProfile ? (
-                        <span>
-                          Valor de tabla: {currencyFormatter.format(selectedProfile.hourlyRateARS)}
-                        </span>
-                      ) : null}
-                      {isManual && selectedProfile ? (
-                        <button
-                          type="button"
-                          onClick={() => handleResetRate(item.id)}
-                          className="rounded border border-slate-300 px-2 py-0.5 text-xs font-medium text-slate-600 transition hover:border-slate-400 hover:text-slate-800"
-                        >
-                          Usar valor de tabla
-                        </button>
-                      ) : null}
-                    </div>
-                  </td>
-                  <td className="px-3 py-2 text-right font-medium">
-                    {currencyFormatter.format(calculateLaborItemCost(item))}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+      <div className="rounded-lg border-l-4 border-sky-300 bg-sky-50/80 p-4 text-sm text-sky-900">
+        <p>
+          <strong>Nota:</strong> El valor hora se estima dividiendo el salario
+          mensual por {LABOR_MONTHLY_HOURS} horas/mes (22 días × 8 h). Para
+          contratados, ingrese el monto mensual neto del contrato como salario
+          de referencia. (Esta es una aproximación operativa basada en jornada
+          legal de 8 h/diarias y 48 h/semanales.)
+        </p>
       </div>
 
-      <p className="text-xs text-slate-500">
-        Considera el tiempo efectivo dedicado a la práctica por cada perfil.
-        Si alguno de los roles no participa, deja el valor en cero.
-      </p>
+      <div className="space-y-4">
+        {sublevel.items.map((item) => {
+          const rowErrors = errorsById.get(item.id);
+          const rowTouched = touched[item.id];
+          const calculation = calculations.get(item.id);
+          const hourlyValue = calculation?.hourlyValue ?? 0;
+          const cost = calculation?.cost ?? 0;
+
+          return (
+            <div
+              key={item.id}
+              className="space-y-3 rounded-xl bg-white/80 p-4 shadow-sm ring-1 ring-slate-200"
+            >
+              <h4 className="text-base font-semibold text-slate-800">
+                {item.label}
+              </h4>
+              <div className="grid gap-4 md:grid-cols-5">
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Cantidad de personas
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1}
+                    inputMode="numeric"
+                    value={item.quantity > 0 ? item.quantity : ""}
+                    onChange={(event) =>
+                      handleNumberChange(item.id, "quantity", event.target.value)
+                    }
+                    onBlur={() => handleBlur(item.id, "quantity")}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  />
+                  {rowErrors?.quantity && rowTouched?.quantity ? (
+                    <p className="mt-1 text-xs text-red-600">
+                      {rowErrors.quantity}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Horas totales
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={0.5}
+                    inputMode="decimal"
+                    value={item.totalHours > 0 ? item.totalHours : ""}
+                    onChange={(event) =>
+                      handleNumberChange(item.id, "totalHours", event.target.value)
+                    }
+                    onBlur={() => handleBlur(item.id, "totalHours")}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  />
+                  {rowErrors?.totalHours && rowTouched?.totalHours ? (
+                    <p className="mt-1 text-xs text-red-600">
+                      {rowErrors.totalHours}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="md:col-span-1">
+                  <label className="block text-sm font-medium text-slate-700">
+                    Salario mensual (ARS)
+                  </label>
+                  <input
+                    type="number"
+                    min={1}
+                    step={1000}
+                    inputMode="decimal"
+                    value={item.monthlySalary > 0 ? item.monthlySalary : ""}
+                    onChange={(event) =>
+                      handleNumberChange(
+                        item.id,
+                        "monthlySalary",
+                        event.target.value
+                      )
+                    }
+                    onBlur={() => handleBlur(item.id, "monthlySalary")}
+                    className="mt-1 w-full rounded-md border border-slate-300 px-3 py-2 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
+                  />
+                  {rowErrors?.monthlySalary && rowTouched?.monthlySalary ? (
+                    <p className="mt-1 text-xs text-red-600">
+                      {rowErrors.monthlySalary}
+                    </p>
+                  ) : null}
+                </div>
+
+                <div className="md:col-span-1">
+                  <span className="block text-sm font-medium text-slate-700">
+                    Valor hora (ARS)
+                  </span>
+                  <p className="mt-2 text-base font-semibold text-slate-900">
+                    {formatARS(hourlyValue)}
+                  </p>
+                </div>
+
+                <div className="md:col-span-1">
+                  <span className="block text-sm font-medium text-slate-700">
+                    Costo del tipo (ARS)
+                  </span>
+                  <p className="mt-2 text-base font-semibold text-inta-green">
+                    {formatARS(cost)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="space-y-2 rounded-xl border border-slate-200 bg-white/70 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h4 className={`text-base font-semibold ${appearance.header}`}>
+            Subtotal Mano de Obra Directa (Nivel 1 · b.2)
+          </h4>
+          <span className="text-base font-semibold text-inta-green">
+            {formatARS(subtotal)}
+          </span>
+        </div>
+        {showGlobalError ? (
+          <p className="text-sm text-red-600">
+            Revisá los campos con error para continuar.
+          </p>
+        ) : null}
+      </div>
     </section>
   );
 }

@@ -1,3 +1,5 @@
+import { round2 } from "./money";
+
 export type LevelKey =
   | "nivel1"
   | "serviciosGenerales"
@@ -51,18 +53,18 @@ export interface SupplyCostItem {
 export type LaborRole =
   | "professional"
   | "technician"
-  | "support"
-  | "intern";
+  | "support";
 
 export interface LaborCostItem {
   id: string;
   role: LaborRole;
   label: string;
-  hours: number;
-  rate: number;
-  profileCode?: string | null;
-  isManualRate?: boolean;
+  quantity: number;
+  totalHours: number;
+  monthlySalary: number;
 }
+
+export const LABOR_MONTHLY_HOURS = 22 * 8;
 
 export interface EquipmentCostItem {
   id: string;
@@ -321,7 +323,18 @@ export function calculateSupplyItemCost(
 }
 
 export function calculateLaborItemCost(item: LaborCostItem): number {
-  return item.hours * item.rate;
+  if (
+    item.quantity <= 0 ||
+    item.totalHours <= 0 ||
+    item.monthlySalary <= 0
+  ) {
+    return 0;
+  }
+
+  const hourlyValue = item.monthlySalary / LABOR_MONTHLY_HOURS;
+  const cost = hourlyValue * item.totalHours * item.quantity;
+
+  return round2(cost);
 }
 
 export function calculateEquipmentItemDepreciation(

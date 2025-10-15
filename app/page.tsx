@@ -57,44 +57,32 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
           id: "manoDeObraDirecta",
           name: "Nivel 1 b.2) Mano de obra Directa",
           description:
-            "Estima las horas involucradas del personal que participa en la práctica (profesionales, técnicos, apoyos y becarios) y sus tarifas para calcular el costo laboral directo.",
+            "Estima las horas involucradas del personal que participa en la práctica (profesionales, técnicos y apoyos) y los salarios de referencia para calcular el costo laboral directo.",
           type: "manoObra",
           items: [
             {
               id: "professional",
               role: "professional",
-              label: "Profesional investigador",
-              hours: 0,
-              rate: 0,
-              profileCode: "professional",
-              isManualRate: false
+              label: "Profesionales",
+              quantity: 0,
+              totalHours: 0,
+              monthlySalary: 0
             },
             {
               id: "technician",
               role: "technician",
-              label: "Técnico",
-              hours: 0,
-              rate: 0,
-              profileCode: "technician",
-              isManualRate: false
+              label: "Técnicos",
+              quantity: 0,
+              totalHours: 0,
+              monthlySalary: 0
             },
             {
               id: "support",
               role: "support",
-              label: "Personal de apoyo",
-              hours: 0,
-              rate: 0,
-              profileCode: "support",
-              isManualRate: false
-            },
-            {
-              id: "intern",
-              role: "intern",
-              label: "Becario",
-              hours: 0,
-              rate: 0,
-              profileCode: "intern",
-              isManualRate: false
+              label: "Apoyo",
+              quantity: 0,
+              totalHours: 0,
+              monthlySalary: 0
             }
           ]
         },

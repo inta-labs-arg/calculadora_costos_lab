@@ -397,8 +397,9 @@ export function ThirdPartyAccreditationSection({
   useEffect(() => {
     const determinationsValue = detMesEffective > 0 ? detMesEffective : 0;
 
-    const items: SharedResourceCostItem[] = validComputations.map((item) => {
-      const id = item.formId ?? createItemId();
+    const items: SharedResourceCostItem[] = validComputations.map((item, index) => {
+      const currentItem = sublevel.items[index];
+      const id = item.formId ?? currentItem?.id ?? createItemId();
 
       return {
         id,

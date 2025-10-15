@@ -125,6 +125,19 @@ export interface SharedResourceCostItem {
     };
     ipd: number;
   };
+  accreditationDetails?: {
+    organismo: string;
+    cta: number;
+    months: number;
+    monthlyCost: number;
+    annualCost: number;
+    detMes: number;
+    shortPeriod: boolean;
+    period: {
+      start: string;
+      end: string;
+    };
+  };
 }
 
 export interface SharedResourceSublevelState {

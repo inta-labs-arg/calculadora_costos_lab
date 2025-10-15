@@ -612,153 +612,148 @@ export function ThirdPartyAccreditationSection({
           </p>
         ) : null}
 
-        {fields.map((field, index) => {
-          const computation = computations[index];
-          const fieldErrors = errors.accreditations?.[index];
-          const defaultOrganismo =
-            typeof field.organismo === "string" ? field.organismo : "";
-          const defaultCta =
-            typeof field.cta === "string" || typeof field.cta === "number"
-              ? String(field.cta)
-              : "";
-          const defaultFechaInicio =
-            typeof field.fechaInicio === "string" ? field.fechaInicio : "";
-          const defaultFechaFin =
-            typeof field.fechaFin === "string" ? field.fechaFin : "";
-          const monthsDisplay =
-            computation && computation.months !== undefined
-              ? monthsFormatter.format(computation.months)
-              : "—";
-          const monthlyCostDisplay =
-            computation && computation.monthlyCost !== undefined
-              ? currencyFormatter.format(computation.monthlyCost)
-              : "—";
-          const annualCostDisplay =
-            computation && computation.annualCost !== undefined
-              ? currencyFormatter.format(computation.annualCost)
-              : "—";
-
-          return (
-            <div
-              key={field.id}
-              className={`space-y-3 rounded-lg border p-4 ${appearance.form}`}
-            >
-              <input
-                type="hidden"
-                defaultValue={field.formId ?? ""}
-                {...register(`accreditations.${index}.formId` as const)}
-              />
-
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <h4 className={`text-base font-semibold ${appearance.header}`}>
-                  Costo de acreditación #{index + 1}
-                </h4>
-                <button
-                  type="button"
-                  onClick={() => remove(index)}
-                  className="text-sm font-medium text-rose-600 transition hover:text-rose-500"
-                >
-                  Eliminar
-                </button>
-              </div>
-
-              <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-emerald-900">
+        {fields.length > 0 ? (
+          <div className="overflow-x-auto rounded-lg border border-emerald-200 bg-white">
+            <table className="min-w-full divide-y divide-emerald-100 text-sm text-emerald-900">
+              <thead className={`bg-emerald-50 ${appearance.tableHead}`}>
+                <tr>
+                  <th scope="col" className="px-3 py-2 text-left font-semibold">
+                    #
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-semibold">
                     Organismo acreditador
-                  </span>
-                  <input
-                    type="text"
-                    defaultValue={defaultOrganismo}
-                    {...register(`accreditations.${index}.organismo` as const)}
-                    className="rounded-md border border-emerald-300 px-3 py-2 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                  {fieldErrors?.organismo ? (
-                    <span className="text-xs text-rose-600">
-                      {fieldErrors.organismo.message}
-                    </span>
-                  ) : null}
-                </label>
-
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-emerald-900">CTA (ARS)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    min={0}
-                    defaultValue={defaultCta}
-                    {...register(`accreditations.${index}.cta` as const)}
-                    className="rounded-md border border-emerald-300 px-3 py-2 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                  {fieldErrors?.cta ? (
-                    <span className="text-xs text-rose-600">
-                      {fieldErrors.cta.message}
-                    </span>
-                  ) : (
-                    <span className="text-xs text-emerald-700">
-                      Componé este valor con el costo de la acreditación más el
-                      costo estimado de al menos la última visita de auditoría
-                      (viáticos por 1–3 días si corresponde).
-                    </span>
-                  )}
-                </label>
-
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-emerald-900">
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-semibold">
+                    CTA (ARS)
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-semibold">
                     Fecha de inicio
-                  </span>
-                  <input
-                    type="date"
-                    defaultValue={defaultFechaInicio}
-                    {...register(`accreditations.${index}.fechaInicio` as const)}
-                    className="rounded-md border border-emerald-300 px-3 py-2 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                  {fieldErrors?.fechaInicio ? (
-                    <span className="text-xs text-rose-600">
-                      {fieldErrors.fechaInicio.message}
-                    </span>
-                  ) : null}
-                </label>
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-semibold">
+                    Fecha de fin
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-semibold">
+                    Meses exactos (M)
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-semibold">
+                    Costo mensual (CMi)
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-semibold">
+                    Costo anual (CAi)
+                  </th>
+                  <th scope="col" className="px-3 py-2 text-left font-semibold">
+                    Acciones
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-emerald-100">
+                {fields.map((field, index) => {
+                  const computation = computations[index];
+                  const defaultOrganismo =
+                    typeof field.organismo === "string" ? field.organismo : "";
+                  const defaultCta =
+                    typeof field.cta === "string" || typeof field.cta === "number"
+                      ? String(field.cta)
+                      : "";
+                  const defaultFechaInicio =
+                    typeof field.fechaInicio === "string" ? field.fechaInicio : "";
+                  const defaultFechaFin =
+                    typeof field.fechaFin === "string" ? field.fechaFin : "";
+                  const monthsDisplay =
+                    computation && computation.months !== undefined
+                      ? monthsFormatter.format(computation.months)
+                      : "—";
+                  const monthlyCostDisplay =
+                    computation && computation.monthlyCost !== undefined
+                      ? currencyFormatter.format(computation.monthlyCost)
+                      : "—";
+                  const annualCostDisplay =
+                    computation && computation.annualCost !== undefined
+                      ? currencyFormatter.format(computation.annualCost)
+                      : "—";
+                  const ctaValue =
+                    computation && computation.cta !== undefined
+                      ? computation.cta
+                      : defaultCta
+                      ? Number(defaultCta)
+                      : undefined;
+                  const ctaDisplay =
+                    typeof ctaValue === "number" && !Number.isNaN(ctaValue)
+                      ? currencyFormatter.format(ctaValue)
+                      : "—";
+                  const startDisplay = computation?.fechaInicio
+                    ? formatDateInputValue(computation.fechaInicio)
+                    : defaultFechaInicio;
+                  const endDisplay = computation?.fechaFin
+                    ? formatDateInputValue(computation.fechaFin)
+                    : defaultFechaFin;
 
-                <label className="flex flex-col gap-1 text-sm">
-                  <span className="font-medium text-emerald-900">Fecha de fin</span>
-                  <input
-                    type="date"
-                    defaultValue={defaultFechaFin}
-                    {...register(`accreditations.${index}.fechaFin` as const)}
-                    className="rounded-md border border-emerald-300 px-3 py-2 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                  {fieldErrors?.fechaFin ? (
-                    <span className="text-xs text-rose-600">
-                      {fieldErrors.fechaFin.message}
-                    </span>
-                  ) : null}
-                </label>
-              </div>
-
-              <dl className="grid gap-2 rounded-md bg-white/80 p-3 text-sm text-emerald-900 md:grid-cols-3">
-                <div className="flex flex-col gap-0.5">
-                  <dt className="font-medium">Meses exactos de vigencia (M)</dt>
-                  <dd>{monthsDisplay}</dd>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <dt className="font-medium">Costo mensual individual (CMi)</dt>
-                  <dd>{monthlyCostDisplay}</dd>
-                </div>
-                <div className="flex flex-col gap-0.5">
-                  <dt className="font-medium">Costo anual individual (CAi)</dt>
-                  <dd>{annualCostDisplay}</dd>
-                </div>
-              </dl>
-
-              {computation?.shortPeriod ? (
-                <p className="text-sm text-amber-700">
-                  Período demasiado corto, verificá las fechas.
-                </p>
-              ) : null}
-            </div>
-          );
-        })}
+                  return (
+                    <tr key={field.id} className="odd:bg-emerald-50/40">
+                      <td className="px-3 py-2 font-semibold text-emerald-900">
+                        {index + 1}
+                        <input
+                          type="hidden"
+                          defaultValue={field.formId ?? ""}
+                          {...register(`accreditations.${index}.formId` as const)}
+                        />
+                        <input
+                          type="hidden"
+                          defaultValue={defaultOrganismo}
+                          {...register(
+                            `accreditations.${index}.organismo` as const
+                          )}
+                        />
+                        <input
+                          type="hidden"
+                          defaultValue={defaultCta}
+                          {...register(`accreditations.${index}.cta` as const)}
+                        />
+                        <input
+                          type="hidden"
+                          defaultValue={defaultFechaInicio}
+                          {...register(
+                            `accreditations.${index}.fechaInicio` as const
+                          )}
+                        />
+                        <input
+                          type="hidden"
+                          defaultValue={defaultFechaFin}
+                          {...register(
+                            `accreditations.${index}.fechaFin` as const
+                          )}
+                        />
+                      </td>
+                      <td className="px-3 py-2">{defaultOrganismo || "—"}</td>
+                      <td className="px-3 py-2 text-right">{ctaDisplay}</td>
+                      <td className="px-3 py-2">{startDisplay || "—"}</td>
+                      <td className="px-3 py-2">{endDisplay || "—"}</td>
+                      <td className="px-3 py-2 text-right">
+                        {monthsDisplay}
+                        {computation?.shortPeriod ? (
+                          <div className="text-xs font-medium text-amber-700">
+                            Período demasiado corto
+                          </div>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-2 text-right">{monthlyCostDisplay}</td>
+                      <td className="px-3 py-2 text-right">{annualCostDisplay}</td>
+                      <td className="px-3 py-2">
+                        <button
+                          type="button"
+                          onClick={() => remove(index)}
+                          className="text-sm font-medium text-rose-600 transition hover:text-rose-500"
+                        >
+                          Eliminar
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        ) : null}
 
         <form
           onSubmit={handleAddAccreditation}
@@ -867,7 +862,7 @@ export function ThirdPartyAccreditationSection({
           <button
             type="submit"
             disabled={!isDraftValid}
-            className="flex w-full items-center justify-center gap-2 rounded-md border border-emerald-300 bg-white/80 px-3 py-2 text-sm font-medium text-emerald-900 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+            className="flex w-full items-center justify-center gap-2 rounded-md bg-inta-blue px-3 py-2 text-sm font-medium text-white transition hover:bg-inta-blue/90 disabled:cursor-not-allowed disabled:bg-slate-300"
           >
             <PlusIcon className="h-4 w-4" aria-hidden="true" />
             Agregar costo de acreditación

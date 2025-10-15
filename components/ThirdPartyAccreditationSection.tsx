@@ -472,7 +472,8 @@ export function ThirdPartyAccreditationSection({
     }
   }, [detMesEffective, onChange, sublevel, validComputations]);
 
-  const handleAddAccreditation = handleSubmitDraft((data) => {
+  const handleAddAccreditation = handleSubmitDraft((rawData) => {
+    const data = accreditationItemSchema.parse(rawData);
     const monthsResult = calculateExactMonths(data.fechaInicio, data.fechaFin);
     const months = monthsResult.months;
     const monthlyCost = months > 0 ? data.cta / months : 0;

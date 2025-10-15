@@ -397,8 +397,13 @@ export function ThirdPartyAccreditationSection({
   useEffect(() => {
     const determinationsValue = detMesEffective > 0 ? detMesEffective : 0;
 
-    const items: SharedResourceCostItem[] = validComputations.map((item) => {
-      const id = item.formId ?? createItemId();
+    if (validComputations.length !== watchedAccreditations.length) {
+      return;
+    }
+
+    const items: SharedResourceCostItem[] = validComputations.map((item, index) => {
+      const currentItem = sublevel.items[index];
+      const id = item.formId ?? currentItem?.id ?? createItemId();
 
       return {
         id,
@@ -470,7 +475,13 @@ export function ThirdPartyAccreditationSection({
     if (shouldUpdate) {
       onChange({ ...sublevel, items });
     }
-  }, [detMesEffective, onChange, sublevel, validComputations]);
+  }, [
+    detMesEffective,
+    onChange,
+    sublevel,
+    validComputations,
+    watchedAccreditations
+  ]);
 
   const handleAddAccreditation = handleSubmitDraft((rawData) => {
     const data = accreditationItemSchema.parse(rawData);

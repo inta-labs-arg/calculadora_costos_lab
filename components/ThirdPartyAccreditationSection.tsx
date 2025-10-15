@@ -198,6 +198,58 @@ function formatDateInputValue(date: Date | null) {
   return date.toISOString().slice(0, 10);
 }
 
+function roundForComparison(value: number | null | undefined) {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return 0;
+  }
+
+  return Math.round(value * 1e6) / 1e6;
+}
+
+type NormalizedAccreditationItem = {
+  id: string;
+  concept: string;
+  monthlyCost: number;
+  determinations: number;
+  accreditationDetails: {
+    organismo: string;
+    cta: number;
+    months: number;
+    monthlyCost: number;
+    annualCost: number;
+    detMes: number;
+    shortPeriod: boolean;
+    start: string;
+    end: string;
+  } | null;
+};
+
+function normalizeAccreditationItem(
+  item: SharedResourceCostItem
+): NormalizedAccreditationItem {
+  const details = item.accreditationDetails;
+
+  return {
+    id: item.id,
+    concept: item.concept ?? "",
+    monthlyCost: roundForComparison(item.monthlyCost ?? 0),
+    determinations: roundForComparison(item.determinations ?? 0),
+    accreditationDetails: details
+      ? {
+          organismo: details.organismo ?? "",
+          cta: roundForComparison(details.cta ?? 0),
+          months: roundForComparison(details.months ?? 0),
+          monthlyCost: roundForComparison(details.monthlyCost ?? 0),
+          annualCost: roundForComparison(details.annualCost ?? 0),
+          detMes: roundForComparison(details.detMes ?? 0),
+          shortPeriod: Boolean(details.shortPeriod),
+          start: details.period?.start ?? "",
+          end: details.period?.end ?? ""
+        }
+      : null
+  };
+}
+
 function isValidAccreditation(
   item: AccreditationComputation
 ): item is ValidAccreditationComputation {
@@ -299,6 +351,10 @@ export function ThirdPartyAccreditationSection({
   const watchedAccreditations = watch("accreditations");
   const draftValues = watchDraft();
   const skipNextSyncRef = useRef(false);
+  const serializedCurrentItems = useMemo(
+    () => JSON.stringify(sublevel.items.map(normalizeAccreditationItem)),
+    [sublevel.items]
+  );
 
   const computations = useMemo<AccreditationComputation[]>(() => {
     return watchedAccreditations.map((item, index) => {
@@ -432,61 +488,22 @@ export function ThirdPartyAccreditationSection({
       };
     });
 
-    const shouldUpdate =
-      items.length !== sublevel.items.length ||
-      items.some((nextItem, index) => {
-        const current = sublevel.items[index];
+    const serializedNextItems = JSON.stringify(
+      items.map(normalizeAccreditationItem)
+    );
 
-        if (!current) {
-          return true;
-        }
-
-        const currentDetails = current.accreditationDetails;
-        const nextDetails = nextItem.accreditationDetails;
-
-        if (
-          current.id !== nextItem.id ||
-          current.concept !== nextItem.concept ||
-          Math.abs(current.monthlyCost - nextItem.monthlyCost) > 1e-6 ||
-          current.determinations !== nextItem.determinations
-        ) {
-          return true;
-        }
-
-        if (!currentDetails && nextDetails) {
-          return true;
-        }
-
-        if (!nextDetails) {
-          return false;
-        }
-
-        if (!currentDetails) {
-          return true;
-        }
-
-        return (
-          currentDetails.organismo !== nextDetails.organismo ||
-          Math.abs(currentDetails.cta - nextDetails.cta) > 1e-6 ||
-          Math.abs(currentDetails.months - nextDetails.months) > 1e-6 ||
-          Math.abs(currentDetails.monthlyCost - nextDetails.monthlyCost) > 1e-6 ||
-          Math.abs(currentDetails.annualCost - nextDetails.annualCost) > 1e-6 ||
-          currentDetails.detMes !== nextDetails.detMes ||
-          currentDetails.shortPeriod !== nextDetails.shortPeriod ||
-          currentDetails.period.start !== nextDetails.period.start ||
-          currentDetails.period.end !== nextDetails.period.end
-        );
-      });
-
-    if (shouldUpdate) {
-      onChange({ ...sublevel, items });
+    if (serializedNextItems === serializedCurrentItems) {
+      return;
     }
+
+    onChange({ ...sublevel, items });
   }, [
     detMesEffective,
     onChange,
     sublevel,
     validComputations,
-    watchedAccreditations
+    watchedAccreditations,
+    serializedCurrentItems
   ]);
 
   const handleAddAccreditation = handleSubmitDraft((rawData) => {

@@ -8,7 +8,6 @@ import { PercentageLevelCard } from "@/components/PercentageLevelCard";
 import { InstitutionalPricingPanel } from "@/components/InstitutionalPricingPanel";
 import { SummaryPanel } from "@/components/SummaryPanel";
 import { ConfigurationPanel } from "@/components/ConfigurationPanel";
-import { HourlyRatesPanel } from "@/components/HourlyRatesPanel";
 import type {
   LevelKey,
   LevelState,
@@ -490,10 +489,6 @@ function HomePageContent() {
           onPercentageEEAChange={setPercentageEEA}
           onPercentageCentroChange={setPercentageCentro}
         />
-      </div>
-
-      <div id="gestor-horas" className="scroll-mt-24">
-        <HourlyRatesPanel />
       </div>
 
       <div id="resumen" className="scroll-mt-24">

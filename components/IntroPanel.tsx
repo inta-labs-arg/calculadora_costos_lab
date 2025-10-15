@@ -52,12 +52,6 @@ export function IntroPanel({ onExport }: IntroPanelProps) {
             </a>
             <a
               className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/20 hover:text-white"
-              href="#gestor-horas"
-            >
-              Gestor de horas INTA
-            </a>
-            <a
-              className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/20 hover:text-white"
               href="https://www.argentina.gob.ar/inta/cr-cordoba/guia-metodologica-para-el-costeo-de-servicios-rutinarios-en-laboratorios-de-inta"
               target="_blank"
               rel="noreferrer"

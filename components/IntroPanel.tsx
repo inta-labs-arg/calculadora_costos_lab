@@ -1,13 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { DownloadIcon, InfoIcon } from "./icons";
+import { InfoIcon } from "./icons";
 
-interface IntroPanelProps {
-  onExport: () => void;
-}
-
-export function IntroPanel({ onExport }: IntroPanelProps) {
+export function IntroPanel() {
   const [showHelp, setShowHelp] = useState(false);
 
   return (
@@ -61,13 +57,6 @@ export function IntroPanel({ onExport }: IntroPanelProps) {
           </nav>
         </div>
         <div className="flex flex-col gap-3 text-sm">
-          <button
-            type="button"
-            onClick={onExport}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 font-semibold text-inta-blue shadow-sm transition hover:bg-slate-100"
-          >
-            <DownloadIcon className="h-4 w-4" /> Exportar como JSON
-          </button>
           <button
             type="button"
             onClick={() => setShowHelp((value) => !value)}

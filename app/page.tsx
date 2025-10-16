@@ -331,32 +331,9 @@ function HomePageContent() {
     );
   };
 
-  const handleExport = () => {
-    const payload = {
-      generatedAt: new Date().toISOString(),
-      totals,
-      grandTotal,
-      levels,
-      pricing: {
-        precioARS: round2(priceARS),
-        porcentajeEEA: round2(percentageEEA),
-        porcentajeCentro: round2(percentageCentro)
-      }
-    };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
-      type: "application/json"
-    });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `calculadora-inta-${new Date().toISOString().slice(0, 10)}.json`;
-    anchor.click();
-    URL.revokeObjectURL(url);
-  };
-
   return (
     <div className="mx-auto max-w-6xl space-y-12 px-4 py-10">
-      <IntroPanel onExport={handleExport} />
+      <IntroPanel />
 
       <div id="configuracion" className="scroll-mt-24">
         <ConfigurationPanel />

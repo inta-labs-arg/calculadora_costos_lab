@@ -7,6 +7,23 @@ const appliedRateFormatter = new Intl.NumberFormat("es-AR", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 4
 });
+const arsCurrencyFormatter = new Intl.NumberFormat("es-AR", {
+  style: "currency",
+  currency: "ARS"
+});
+
+const BNA_STORAGE_KEY = "bna-cotizacion";
+
+interface BnaQuotePayload {
+  source: string;
+  date: string;
+  displayDate: string;
+  moneda: string;
+  compra: number | null;
+  venta: number;
+  horaActualizacion: string | null;
+  fetchedAt: string;
+}
 
 export function ConfigurationPanel() {
   const {
@@ -19,6 +36,8 @@ export function ConfigurationPanel() {
   } = useExchangeRate();
   const isAutomatic = state.source !== "manual";
   const [toast, setToast] = useState<string | null>(null);
+  const [bnaQuote, setBnaQuote] = useState<BnaQuotePayload | null>(null);
+  const [isFetchingBna, setIsFetchingBna] = useState(false);
 
   useEffect(() => {
     if (!toast) {
@@ -28,6 +47,51 @@ export function ConfigurationPanel() {
     const timeout = window.setTimeout(() => setToast(null), 4000);
     return () => window.clearTimeout(timeout);
   }, [toast]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    try {
+      const storedValue = window.localStorage.getItem(BNA_STORAGE_KEY);
+      if (!storedValue) {
+        return;
+      }
+
+      const parsed = JSON.parse(storedValue) as {
+        quote?: BnaQuotePayload;
+        storedAt?: string;
+      };
+
+      if (parsed?.quote) {
+        setBnaQuote(parsed.quote);
+      }
+    } catch (error) {
+      console.error(
+        "No fue posible leer la cotización de BNA desde localStorage",
+        error
+      );
+    }
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !bnaQuote) {
+      return;
+    }
+
+    try {
+      window.localStorage.setItem(
+        BNA_STORAGE_KEY,
+        JSON.stringify({ quote: bnaQuote, storedAt: new Date().toISOString() })
+      );
+    } catch (error) {
+      console.error(
+        "No fue posible almacenar la cotización de BNA en localStorage",
+        error
+      );
+    }
+  }, [bnaQuote]);
 
   const handleRateChange = (event: ChangeEvent<HTMLInputElement>) => {
     const numericValue = Number(event.target.value);
@@ -63,6 +127,64 @@ export function ConfigurationPanel() {
       }
     } else {
       applyManualState();
+    }
+  };
+
+  const handleFetchBnaQuote = async () => {
+    setIsFetchingBna(true);
+    try {
+      const response = await fetch("/api/cotizacion/bna", {
+        headers: { Accept: "application/json" }
+      });
+      const contentType = response.headers.get("content-type") ?? "";
+
+      if (!response.ok) {
+        let message =
+          "No se pudo obtener la cotización de BNA. Intentá nuevamente o cargá el valor manualmente.";
+        if (contentType.includes("application/json")) {
+          try {
+            const payload = (await response.json()) as { message?: string };
+            if (payload?.message) {
+              message = payload.message;
+            }
+          } catch (error) {
+            console.error(
+              "No se pudo parsear la respuesta de error del endpoint /api/cotizacion/bna",
+              error
+            );
+          }
+        }
+        throw new Error(message);
+      }
+
+      if (!contentType.includes("application/json")) {
+        throw new Error(
+          "La respuesta del endpoint /api/cotizacion/bna no es JSON. Intentá nuevamente o cargá el valor manualmente."
+        );
+      }
+
+      const payload = (await response.json()) as BnaQuotePayload;
+      if (typeof payload?.venta !== "number" || Number.isNaN(payload.venta)) {
+        throw new Error(
+          "La respuesta del endpoint /api/cotizacion/bna no incluye un valor de venta válido."
+        );
+      }
+
+      setBnaQuote(payload);
+    } catch (error) {
+      console.error("No fue posible obtener la cotización de BNA", error);
+      const fallbackMessage =
+        "No se pudo obtener la cotización de BNA. Intentá nuevamente o cargá el valor manualmente.";
+      const errorMessage =
+        error instanceof Error && typeof error.message === "string"
+          ? error.message.trim()
+          : fallbackMessage;
+      const normalizedMessage = errorMessage.endsWith(".")
+        ? errorMessage
+        : `${errorMessage}.`;
+      setToast(normalizedMessage);
+    } finally {
+      setIsFetchingBna(false);
     }
   };
 
@@ -174,11 +296,64 @@ export function ConfigurationPanel() {
               {" "}— Fecha: <span className="font-medium text-slate-700">{state.dateISO}</span>
             </p>
           </div>
+
+          <div className="space-y-3 rounded-xl border border-inta-blue/30 bg-white/70 p-4 text-sm text-slate-700">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <p className="font-medium text-slate-800">Cotización oficial BNA</p>
+                <p className="text-xs text-slate-500">
+                  Obtiene la cotización minorista publicada por Banco Nación para usarla como referencia.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleFetchBnaQuote}
+                disabled={isFetchingBna}
+                className="inline-flex items-center justify-center rounded-lg bg-inta-blue px-3 py-2 text-sm font-semibold text-white shadow disabled:cursor-not-allowed disabled:bg-slate-400"
+              >
+                {isFetchingBna ? "Consultando…" : "Obtener cotización (BNA)"}
+              </button>
+            </div>
+
+            {isFetchingBna ? (
+              <p className="text-xs text-slate-500">Consultando Banco Nación…</p>
+            ) : null}
+
+            {bnaQuote ? (
+              <dl className="space-y-2 rounded-lg border border-slate-200 bg-white/60 p-3 text-xs text-slate-600">
+                <div>
+                  <dt className="font-medium text-slate-700">Fecha de referencia</dt>
+                  <dd>
+                    {bnaQuote.displayDate}
+                    {bnaQuote.horaActualizacion
+                      ? ` · Hora actualización: ${bnaQuote.horaActualizacion}`
+                      : null}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="font-medium text-slate-700">Dólar BNA (Venta)</dt>
+                  <dd className="text-base font-semibold text-slate-900">
+                    {arsCurrencyFormatter.format(bnaQuote.venta)}
+                  </dd>
+                </div>
+                {typeof bnaQuote.compra === "number" ? (
+                  <div>
+                    <dt className="font-medium text-slate-700">Compra</dt>
+                    <dd>{arsCurrencyFormatter.format(bnaQuote.compra)}</dd>
+                  </div>
+                ) : null}
+              </dl>
+            ) : (
+              <p className="text-xs text-slate-500">
+                Consultá la cotización diaria del Banco Nación para registrar un valor manual de referencia.
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
-      {toast ? (
-        <div
+    {toast ? (
+      <div
           role="alert"
           className="pointer-events-none fixed bottom-6 right-6 max-w-xs rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg"
         >

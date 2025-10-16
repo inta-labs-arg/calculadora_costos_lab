@@ -105,14 +105,14 @@ describe("SummaryPanel", () => {
             subtotal: 500,
             breakdown: [
               {
-                id: "equipamientoEspecifico-depreciacion",
-                name: "Depreciación por determinación (ARS)",
-                subtotal: 350
+                id: "equipamientoEspecifico-depreciacion-anual",
+                name: "Depreciación anual (ARS)",
+                subtotal: 4200
               },
               {
-                id: "equipamientoEspecifico-calibracion",
-                name: "Calibración por determinación (ARS)",
-                subtotal: 150
+                id: "equipamientoEspecifico-depreciacion-mensual",
+                name: "Depreciación mensual (ARS)",
+                subtotal: 500
               }
             ]
           }

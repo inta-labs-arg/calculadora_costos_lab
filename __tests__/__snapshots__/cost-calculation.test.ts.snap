@@ -1,5 +1,32 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
+exports[`equipamiento específico > mantiene el subtotal del nivel directo e incluye la desagregación 1`] = `
+[
+  {
+    "id": "insumosDirectos",
+    "name": "Insumos",
+    "subtotal": 0,
+  },
+  {
+    "breakdown": [
+      {
+        "id": "equipamientoEspecifico-depreciacion-anual",
+        "name": "Depreciación anual (ARS)",
+        "subtotal": 45000,
+      },
+      {
+        "id": "equipamientoEspecifico-depreciacion-mensual",
+        "name": "Depreciación mensual (ARS)",
+        "subtotal": 3750,
+      },
+    ],
+    "id": "equipamientoEspecifico",
+    "name": "Equipamiento",
+    "subtotal": 3750,
+  },
+]
+`;
+
 exports[`equipamiento específico mantiene el subtotal del nivel directo e incluye la desagregación 1`] = `
 Array [
   Object {
@@ -10,19 +37,19 @@ Array [
   Object {
     "breakdown": Array [
       Object {
-        "id": "equipamientoEspecifico-depreciacion",
-        "name": "Depreciación por determinación (ARS)",
-        "subtotal": 500,
+        "id": "equipamientoEspecifico-depreciacion-anual",
+        "name": "Depreciación anual (ARS)",
+        "subtotal": 45000,
       },
       Object {
-        "id": "equipamientoEspecifico-calibracion",
-        "name": "Calibración por determinación (ARS)",
-        "subtotal": 200,
+        "id": "equipamientoEspecifico-depreciacion-mensual",
+        "name": "Depreciación mensual (ARS)",
+        "subtotal": 3750,
       },
     ],
     "id": "equipamientoEspecifico",
     "name": "Equipamiento",
-    "subtotal": 700,
+    "subtotal": 3750,
   },
 ]
 `;

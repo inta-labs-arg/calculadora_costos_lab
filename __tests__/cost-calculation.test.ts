@@ -2,9 +2,8 @@ import { describe, expect, it } from "vitest";
 import {
   LABOR_MONTHLY_HOURS,
   calculateDirectGroupLevel,
-  calculateEquipmentItemCalibration,
-  calculateEquipmentItemCost,
   calculateEquipmentItemDepreciation,
+  calculateEquipmentItemMonthlyDepreciation,
   calculateEquipmentSublevelTotals,
   calculateLaborItemCost,
   calculateSharedResourceItemCost,
@@ -89,25 +88,21 @@ describe("calculateSharedResourceItemCost", () => {
 describe("equipamiento específico", () => {
   const baseItem: EquipmentCostItem = {
     id: "eq-1",
-    name: "Equipo A",
-    model: "Modelo X",
-    usefulLifeDeterminations: 1000,
-    purchasePrice: 500000,
-    calibrationCost: 120000,
-    calibrationPeriodDeterminations: 600
+    descripcion: "Equipo A",
+    costoAdquisicion: 500000,
+    valorResidual: 50000,
+    vidaUtilAnios: 10
   };
 
-  it("descompone el costo por determinación en depreciación y calibración", () => {
-    const depreciation = calculateEquipmentItemDepreciation(baseItem);
-    const calibration = calculateEquipmentItemCalibration(baseItem);
-    const total = calculateEquipmentItemCost(baseItem);
+  it("calcula la depreciación anual y mensual por equipo", () => {
+    const annual = calculateEquipmentItemDepreciation(baseItem);
+    const monthly = calculateEquipmentItemMonthlyDepreciation(baseItem);
 
-    expect(depreciation).toBeCloseTo(500);
-    expect(calibration).toBeCloseTo(200);
-    expect(total).toBeCloseTo(depreciation + calibration);
+    expect(annual).toBeCloseTo(45000);
+    expect(monthly).toBeCloseTo(round2(annual / 12));
   });
 
-  it("agrega subtotales específicos en el subnivel", () => {
+  it("agrega subtotales anuales y mensuales en el subnivel", () => {
     const sublevel: EquipmentSublevelState = {
       id: "equipamientoEspecifico",
       name: "Subnivel 1.3 · Equipamiento específico",
@@ -118,19 +113,19 @@ describe("equipamiento específico", () => {
         {
           ...baseItem,
           id: "eq-2",
-          purchasePrice: 250000,
-          usefulLifeDeterminations: 500,
-          calibrationCost: 60000,
-          calibrationPeriodDeterminations: 300
+          descripcion: "Equipo B",
+          costoAdquisicion: 240000,
+          valorResidual: 0,
+          vidaUtilAnios: 8
         }
       ]
     };
 
     const totals = calculateEquipmentSublevelTotals(sublevel);
 
-    expect(totals.depreciation).toBeCloseTo(1000);
-    expect(totals.calibration).toBeCloseTo(400);
-    expect(totals.total).toBeCloseTo(1400);
+    expect(totals.annual).toBeCloseTo(45000 + 30000);
+    expect(totals.monthly).toBeCloseTo(round2((45000 + 30000) / 12));
+    expect(totals.total).toBeCloseTo(totals.monthly);
   });
 
   it("mantiene el subtotal del nivel directo e incluye la desagregación", () => {
@@ -159,7 +154,9 @@ describe("equipamiento específico", () => {
 
     const result = calculateDirectGroupLevel(level);
 
-    expect(result.subtotal).toBeCloseTo(calculateEquipmentItemCost(baseItem));
+    expect(result.subtotal).toBeCloseTo(
+      calculateEquipmentItemMonthlyDepreciation(baseItem)
+    );
     expect(result.breakdown).toMatchSnapshot();
   });
 });

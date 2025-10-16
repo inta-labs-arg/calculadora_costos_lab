@@ -68,12 +68,10 @@ export const LABOR_MONTHLY_HOURS = 22 * 8;
 
 export interface EquipmentCostItem {
   id: string;
-  name: string;
-  model: string;
-  usefulLifeDeterminations: number;
-  purchasePrice: number;
-  calibrationCost: number;
-  calibrationPeriodDeterminations: number;
+  descripcion: string;
+  costoAdquisicion: number;
+  valorResidual: number;
+  vidaUtilAnios: number;
 }
 
 export interface SupplySublevelState {
@@ -340,50 +338,51 @@ export function calculateLaborItemCost(item: LaborCostItem): number {
 export function calculateEquipmentItemDepreciation(
   item: EquipmentCostItem
 ): number {
-  if (item.usefulLifeDeterminations <= 0) {
+  if (item.vidaUtilAnios <= 0) {
     return 0;
   }
 
-  return item.purchasePrice / item.usefulLifeDeterminations;
+  const depreciableAmount = item.costoAdquisicion - item.valorResidual;
+
+  if (depreciableAmount <= 0) {
+    return 0;
+  }
+
+  return round2(depreciableAmount / item.vidaUtilAnios);
 }
 
-export function calculateEquipmentItemCalibration(
+export function calculateEquipmentItemMonthlyDepreciation(
   item: EquipmentCostItem
 ): number {
-  if (item.calibrationPeriodDeterminations <= 0) {
+  const annual = calculateEquipmentItemDepreciation(item);
+
+  if (annual <= 0) {
     return 0;
   }
 
-  return item.calibrationCost / item.calibrationPeriodDeterminations;
-}
-
-export function calculateEquipmentItemCost(item: EquipmentCostItem): number {
-  return (
-    calculateEquipmentItemDepreciation(item) +
-    calculateEquipmentItemCalibration(item)
-  );
+  return round2(annual / 12);
 }
 
 export function calculateEquipmentSublevelTotals(
   sublevel: EquipmentSublevelState
 ): {
-  depreciation: number;
-  calibration: number;
+  annual: number;
+  monthly: number;
   total: number;
 } {
-  const depreciation = sublevel.items.reduce(
+  const annual = sublevel.items.reduce(
     (acc, item) => acc + calculateEquipmentItemDepreciation(item),
     0
   );
-  const calibration = sublevel.items.reduce(
-    (acc, item) => acc + calculateEquipmentItemCalibration(item),
+  const monthly = sublevel.items.reduce(
+    (acc, item) => acc + calculateEquipmentItemMonthlyDepreciation(item),
     0
   );
 
   return {
-    depreciation,
-    calibration,
-    total: depreciation + calibration
+    annual: round2(annual),
+    monthly: round2(monthly),
+    total: round2(monthly)
   };
 }
 
@@ -462,7 +461,7 @@ export function calculateDirectGroupLevel(
 } {
   const breakdown = level.sublevels.map((sublevel) => {
     if (sublevel.type === "equipamiento") {
-      const { depreciation, calibration, total } =
+      const { annual, monthly, total } =
         calculateEquipmentSublevelTotals(sublevel);
 
       return {
@@ -471,14 +470,14 @@ export function calculateDirectGroupLevel(
         subtotal: total,
         breakdown: [
           {
-            id: `${sublevel.id}-depreciacion`,
-            name: "Depreciación por determinación (ARS)",
-            subtotal: depreciation
+            id: `${sublevel.id}-depreciacion-anual`,
+            name: "Depreciación anual (ARS)",
+            subtotal: annual
           },
           {
-            id: `${sublevel.id}-calibracion`,
-            name: "Calibración por determinación (ARS)",
-            subtotal: calibration
+            id: `${sublevel.id}-depreciacion-mensual`,
+            name: "Depreciación mensual (ARS)",
+            subtotal: monthly
           }
         ]
       };

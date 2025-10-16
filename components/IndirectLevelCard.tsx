@@ -661,11 +661,11 @@ function SharedResourceSublevelSection({
           <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/80 p-3 text-sm text-amber-900">
             <InfoIcon
               className="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
-              aria-label="Ejemplos de mantenimiento"
-              title="Ejemplos: limpieza, ajustes, repuestos"
+              aria-label="Referencia de mantenimiento y calibración"
+              title="Considerá contratos de mantenimiento, calibraciones periódicas y ajustes requeridos para asegurar la aptitud del equipo."
             />
             <p className="leading-snug">
-              No incluir calibración ya contemplada en 1.3 Equipamiento específico. Aquí solo mantenimiento preventivo/correctivo (honorarios + repuestos).
+              Este subnivel contempla gastos de mantenimiento y calibración periódica de equipos conforme a prácticas ISO/IEC 17025/GLP.
             </p>
           </div>
         ) : null}
@@ -801,11 +801,11 @@ function SharedResourceSublevelSection({
           <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50/70 p-3 text-amber-900 md:col-span-4">
             <InfoIcon
               className="mt-0.5 h-4 w-4 shrink-0 text-amber-600"
-              aria-label="Ejemplos de mantenimiento"
-              title="Ejemplos: limpieza, ajustes, repuestos"
+              aria-label="Referencia de mantenimiento y calibración"
+              title="Considerá contratos de mantenimiento, calibraciones periódicas y ajustes requeridos para asegurar la aptitud del equipo."
             />
             <p className="text-sm leading-snug">
-              No incluir calibración ya contemplada en 1.3 Equipamiento específico. Aquí solo mantenimiento preventivo/correctivo (honorarios + repuestos).
+              Este subnivel contempla gastos de mantenimiento y calibración periódica de equipos conforme a prácticas ISO/IEC 17025/GLP.
             </p>
           </div>
         ) : null}
@@ -1177,8 +1177,7 @@ function MaintenanceEquipmentSection({
             aria-hidden="true"
           />
           <p className="leading-snug">
-            No incluir calibración ya contemplada en 1.3 Equipamiento específico.
-            Aquí solo mantenimiento preventivo/correctivo (honorarios + repuestos).
+            Este subnivel contempla gastos de mantenimiento y calibración periódica de equipos conforme a prácticas ISO/IEC 17025/GLP.
           </p>
         </div>
       </header>

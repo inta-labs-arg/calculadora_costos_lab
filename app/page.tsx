@@ -89,7 +89,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
           id: "equipamientoEspecifico",
           name: "Nivel 1 b.3) Equipamiento específico",
           description:
-            "Permite calcular la depreciación y los servicios de calibración asociados al equipamiento utilizado en la determinación, considerando vida útil y frecuencia de calibración.",
+            "Permite registrar la depreciación lineal del equipamiento específico utilizado en la determinación, contemplando costo de adquisición, valor residual y vida útil en años.",
           type: "equipamiento",
           items: []
         }
@@ -120,9 +120,9 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "mantenimientoEquipamiento",
-          name: "Nivel 2 c.3) Mantenimiento de Equipamiento",
+          name: "Nivel 2 c.3) Mantenimiento/Calibración de equipos",
           description:
-            "Incluye honorarios de especialistas y repuestos vinculados al mantenimiento preventivo y correctivo de los equipos, prorrateados según la actividad mensual.",
+            "Incluye honorarios, repuestos y servicios de mantenimiento y calibración periódica de los equipos, prorrateados según la actividad mensual.",
           type: "shared-resource",
           items: []
         },

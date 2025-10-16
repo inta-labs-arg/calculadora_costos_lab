@@ -10,7 +10,7 @@ Feature: Gestionar costos directos unitarios por subnivel
     When la persona selecciona un perfil vigente o edita manualmente la tarifa hora y marca la modificación como manual
     Then las horas y costos se recalculan, se indica la procedencia manual y es posible volver al valor de la tabla oficial en cualquier momento
 
-  Scenario: Distribuir depreciación y calibración de equipamiento específico
-    Given que el subnivel de equipamiento permite cargar vida útil, precios y costos de calibración por determinación
-    When la persona completa los campos requeridos y agrega un equipo al listado
-    Then la tarjeta calcula automáticamente la depreciación y la calibración unitarias, mostrando el método y la referencia documental configurable
+  Scenario: Registrar la depreciación mensual de equipamiento específico
+    Given que el subnivel de equipamiento permite ingresar la descripción, costo de adquisición, valor residual y vida útil en años de cada equipo
+    When la persona completa los campos requeridos y agrega uno o más equipos al listado
+    Then la tarjeta calcula automáticamente la depreciación anual y mensual de cada equipo y suma la depreciación mensual en el subtotal del nivel

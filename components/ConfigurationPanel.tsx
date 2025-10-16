@@ -3,10 +3,6 @@
 import { ChangeEvent, useEffect, useMemo, useState } from "react";
 import { useExchangeRate } from "@/contexts/ExchangeRateContext";
 
-const appliedRateFormatter = new Intl.NumberFormat("es-AR", {
-  minimumFractionDigits: 2,
-  maximumFractionDigits: 4
-});
 const arsCurrencyFormatter = new Intl.NumberFormat("es-AR", {
   style: "currency",
   currency: "ARS"
@@ -26,15 +22,7 @@ interface BnaQuotePayload {
 }
 
 export function ConfigurationPanel() {
-  const {
-    state,
-    manualState,
-    updateManualState,
-    applyManualState,
-    fetchMonedapiRate,
-    isFetching
-  } = useExchangeRate();
-  const isAutomatic = state.source !== "manual";
+  const { manualState, updateManualState } = useExchangeRate();
   const [toast, setToast] = useState<string | null>(null);
   const [bnaQuote, setBnaQuote] = useState<BnaQuotePayload | null>(null);
   const [isFetchingBna, setIsFetchingBna] = useState(false);
@@ -106,30 +94,6 @@ export function ConfigurationPanel() {
     updateManualState({ note: event.target.value });
   };
 
-  const handleToggle = async (event: ChangeEvent<HTMLInputElement>) => {
-    if (event.target.checked) {
-      try {
-        await fetchMonedapiRate();
-      } catch (error) {
-        console.error(error);
-        const fallback =
-          "No fue posible obtener el tipo de cambio oficial desde Monedapi.";
-        const errorMessage =
-          error instanceof Error && typeof error.message === "string"
-            ? error.message.trim()
-            : "";
-        const displayMessage = errorMessage ? errorMessage : fallback;
-        const normalizedMessage = displayMessage.endsWith(".")
-          ? displayMessage
-          : `${displayMessage}.`;
-        setToast(`${normalizedMessage} Se mantiene el valor manual.`);
-        event.target.checked = false;
-      }
-    } else {
-      applyManualState();
-    }
-  };
-
   const handleFetchBnaQuote = async () => {
     setIsFetchingBna(true);
     try {
@@ -188,29 +152,12 @@ export function ConfigurationPanel() {
     }
   };
 
-  const appliedRateLabel = useMemo(
-    () => `${appliedRateFormatter.format(state.rate)} ARS/USD`,
-    [state.rate]
-  );
-
   const manualRateValue = useMemo(
     () => manualState.rate.toString(),
     [manualState.rate]
   );
 
   const noteValue = manualState.note ?? "";
-
-  const sourceLabel =
-    state.source === "monedapi"
-      ? "Monedapi.ar"
-      : state.source === "cache"
-        ? "Cache local"
-        : "Manual";
-
-  const sourceTooltip =
-    state.source === "monedapi"
-      ? undefined
-      : "Se usó cache/valor manual por indisponibilidad de Monedapi";
 
   return (
     <section className="relative rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-md">
@@ -265,37 +212,6 @@ export function ConfigurationPanel() {
             Los valores manuales quedan guardados como respaldo si la consulta a
             Monedapi no está disponible.
           </p>
-
-          <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-sm text-slate-700">
-            <label className="flex items-center justify-between gap-3">
-              <span>
-                <span className="block font-medium text-slate-800">
-                  Obtener TC desde Monedapi
-                </span>
-                <span className="block text-xs text-slate-500">
-                  Actualiza automáticamente con el último tipo de cambio oficial
-                  minorista informado por Monedapi.
-                </span>
-              </span>
-              <input
-                type="checkbox"
-                className="h-5 w-5 accent-inta-blue"
-                checked={isAutomatic}
-                onChange={handleToggle}
-                disabled={isFetching}
-              />
-            </label>
-            {isFetching ? (
-              <p className="text-xs text-slate-500">Consultando a Monedapi…</p>
-            ) : null}
-            <p className="text-xs text-slate-500">
-              TC aplicado (USD → ARS): <span className="font-medium text-slate-700">{appliedRateLabel}</span> — Fuente:{" "}
-              <span className="font-medium text-slate-700" title={sourceTooltip ?? undefined}>
-                {sourceLabel}
-              </span>
-              {" "}— Fecha: <span className="font-medium text-slate-700">{state.dateISO}</span>
-            </p>
-          </div>
 
           <div className="space-y-3 rounded-xl border border-inta-blue/30 bg-white/70 p-4 text-sm text-slate-700">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -352,8 +268,8 @@ export function ConfigurationPanel() {
         </div>
       </div>
 
-    {toast ? (
-      <div
+      {toast ? (
+        <div
           role="alert"
           className="pointer-events-none fixed bottom-6 right-6 max-w-xs rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 shadow-lg"
         >

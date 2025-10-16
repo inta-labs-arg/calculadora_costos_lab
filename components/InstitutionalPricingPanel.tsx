@@ -1,6 +1,14 @@
 "use client";
 
-import { ChangeEvent, useEffect, useId, useMemo, useState } from "react";
+import {
+  ChangeEvent,
+  FocusEvent,
+  FormEvent,
+  useEffect,
+  useId,
+  useMemo,
+  useState
+} from "react";
 import { formatARS, round2 } from "@/lib/money";
 
 interface InstitutionalPricingPanelProps {
@@ -150,11 +158,26 @@ export function InstitutionalPricingPanel({
     setPriceFieldValue(event.target.value);
   };
 
-  const handlePriceBlur = () => {
+  const applyPriceChange = () => {
     const parsed = round2(parseCurrencyInput(priceFieldValue));
     onPriceChange(parsed);
     setIsEditingPrice(false);
     setPriceFieldValue(formatARS(parsed));
+  };
+
+  const handlePriceBlur = (event: FocusEvent<HTMLInputElement>) => {
+    const nextElement = event.relatedTarget as HTMLElement | null;
+
+    if (nextElement?.dataset?.action === "apply-price") {
+      return;
+    }
+
+    applyPriceChange();
+  };
+
+  const handlePriceSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    applyPriceChange();
   };
 
   const handleEEAChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -195,24 +218,33 @@ export function InstitutionalPricingPanel({
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[minmax(0,_360px)_1fr]">
-        <div className="space-y-3">
-          <label
-            className="flex flex-col gap-1 text-sm text-amber-800"
-            htmlFor={priceInputId}
-          >
-            <span className="font-medium text-amber-900">Precio (ARS)</span>
-            <input
-              id={priceInputId}
-              type="text"
-              inputMode="decimal"
-              value={priceFieldValue}
-              onChange={handlePriceChange}
-              onFocus={handlePriceFocus}
-              onBlur={handlePriceBlur}
-              placeholder="Ej.: 120000"
-              className="rounded-lg border border-amber-300 px-3 py-2 text-base text-amber-900 shadow-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
-            />
-          </label>
+        <form className="space-y-3" onSubmit={handlePriceSubmit}>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+            <label
+              className="flex flex-col gap-1 text-sm text-amber-800 sm:flex-1"
+              htmlFor={priceInputId}
+            >
+              <span className="font-medium text-amber-900">Precio (ARS)</span>
+              <input
+                id={priceInputId}
+                type="text"
+                inputMode="decimal"
+                value={priceFieldValue}
+                onChange={handlePriceChange}
+                onFocus={handlePriceFocus}
+                onBlur={handlePriceBlur}
+                placeholder="Ej.: 120000"
+                className="rounded-lg border border-amber-300 px-3 py-2 text-base text-amber-900 shadow-sm focus:border-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/60"
+              />
+            </label>
+            <button
+              type="submit"
+              data-action="apply-price"
+              className="inline-flex items-center justify-center rounded-lg bg-inta-blue px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-inta-blue/90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-inta-blue"
+            >
+              Ingresar precio
+            </button>
+          </div>
           <div
             role="status"
             aria-live="polite"
@@ -220,7 +252,7 @@ export function InstitutionalPricingPanel({
           >
             {toleranceStatus.message}
           </div>
-        </div>
+        </form>
 
         <div className="space-y-4 rounded-xl border border-amber-200 bg-white/85 p-4 text-sm text-amber-800">
           <p className="font-semibold text-amber-900">

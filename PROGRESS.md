@@ -9,7 +9,7 @@ La siguiente tabla resume los features y escenarios que definen el alcance funci
 | Feature | Escenarios clave |
 | --- | --- |
 | `afectacion_institucional.feature` | Ajustar la base y los porcentajes secuenciales del Nivel 4 |
-| `costos_directos.feature` | Registrar insumos directos en distintas monedas · Sincronizar valores hora del personal · Distribuir depreciación y calibración de equipamiento específico |
+| `costos_directos.feature` | Registrar insumos directos en distintas monedas · Sincronizar valores hora del personal · Registrar depreciación mensual de equipamiento específico |
 | `costos_indirectos_y_prorrateo.feature` | Ajustar determinaciones mensuales para prorrateo · Documentar infraestructura base |
 | `gestor_valores_hora.feature` | Administrar perfiles y exportar respaldos · Previsualizar e importar tablas |
 | `integracion_monedapi.feature` | Consultar la cotización USD→ARS con caché y reintentos |

@@ -15,17 +15,17 @@ import {
   SupplyCostItem,
   SupplySublevelState,
   SublevelState,
-  calculateEquipmentItemCost,
   calculateEquipmentSublevelTotals,
   calculateSublevelSubtotal,
   calculateLaborItemCost,
   calculateSupplyItemCost,
   calculateSupplyItemUnitPrice,
   currencyFormatter,
+  calculateEquipmentItemDepreciation,
+  calculateEquipmentItemMonthlyDepreciation,
   LABOR_MONTHLY_HOURS
 } from "@/lib/cost-calculation";
 import { PlusIcon } from "./icons";
-import { appConfig } from "@/lib/app-config";
 import { formatARS, round2 } from "@/lib/money";
 
 interface LevelOneCardProps {
@@ -116,28 +116,6 @@ const getUnitGroup = (unit: SupplyUnit) => {
   return "unit" as const;
 };
 
-const equipmentSchema = z.object({
-  name: z.string().min(1, "Identifica el equipamiento"),
-  model: z.string().min(1, "Detalla el modelo o referencia"),
-  usefulLifeDeterminations: z
-    .number({
-      invalid_type_error: "Ingresa la cantidad de determinaciones de vida útil"
-    })
-    .gt(0, "La vida útil debe ser mayor a cero"),
-  purchasePrice: z
-    .number({ invalid_type_error: "Indica el precio de compra" })
-    .nonnegative("El precio debe ser mayor o igual a cero"),
-  calibrationCost: z
-    .number({ invalid_type_error: "Indica el costo de calibración" })
-    .nonnegative("El costo debe ser mayor o igual a cero"),
-  calibrationPeriodDeterminations: z
-    .number({
-      invalid_type_error:
-        "Indica la cantidad de determinaciones en el período de calibración"
-    })
-    .gt(0, "Las determinaciones del período deben ser mayores a cero")
-});
-
 type SublevelAppearance = {
   container: string;
   header: string;
@@ -179,7 +157,7 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
     () =>
       level.sublevels.map((sublevel) => {
         if (sublevel.type === "equipamiento") {
-          const { depreciation, calibration, total } =
+          const { annual, monthly, total } =
             calculateEquipmentSublevelTotals(sublevel);
 
           return {
@@ -188,14 +166,14 @@ export function LevelOneCard({ level, onSublevelChange }: LevelOneCardProps) {
             subtotal: total,
             breakdown: [
               {
-                id: `${sublevel.id}-depreciacion`,
-                name: "Depreciación por determinación (ARS)",
-                subtotal: depreciation
+                id: `${sublevel.id}-depreciacion-anual`,
+                name: "Depreciación anual (ARS)",
+                subtotal: annual
               },
               {
-                id: `${sublevel.id}-calibracion`,
-                name: "Calibración por determinación (ARS)",
-                subtotal: calibration
+                id: `${sublevel.id}-depreciacion-mensual`,
+                name: "Depreciación mensual (ARS)",
+                subtotal: monthly
               }
             ]
           };
@@ -1165,6 +1143,17 @@ function LaborSublevelSection({
   );
 }
 
+type EquipmentEditableField =
+  | "descripcion"
+  | "costoAdquisicion"
+  | "valorResidual"
+  | "vidaUtilAnios";
+
+type EquipmentTouchedState = Record<
+  string,
+  Record<EquipmentEditableField, boolean>
+>;
+
 function EquipmentSublevelSection({
   sublevel,
   onChange,
@@ -1175,101 +1164,188 @@ function EquipmentSublevelSection({
     [sublevel]
   );
   const subtotal = totals.total;
-  const [draft, setDraft] = useState({
-    name: "",
-    model: "",
-    usefulLifeDeterminations: "",
-    purchasePrice: "",
-    calibrationCost: "",
-    calibrationPeriodDeterminations: ""
-  });
-  const [error, setError] = useState<string | null>(null);
+  const [touched, setTouched] = useState<EquipmentTouchedState>({});
+
+  useEffect(() => {
+    setTouched((prev) => {
+      const next: EquipmentTouchedState = { ...prev };
+      let changed = false;
+      const currentIds = new Set(sublevel.items.map((item) => item.id));
+
+      sublevel.items.forEach((item) => {
+        if (!next[item.id]) {
+          next[item.id] = {
+            descripcion: false,
+            costoAdquisicion: false,
+            valorResidual: false,
+            vidaUtilAnios: false
+          };
+          changed = true;
+        }
+      });
+
+      Object.keys(next).forEach((id) => {
+        if (!currentIds.has(id)) {
+          delete next[id];
+          changed = true;
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [sublevel.items]);
+
+  const updateItem = (id: string, updates: Partial<EquipmentCostItem>) => {
+    const nextItems = sublevel.items.map((item) =>
+      item.id === id ? { ...item, ...updates } : item
+    );
+    onChange({ ...sublevel, items: nextItems });
+  };
+
+  const handleDescriptionChange = (id: string, value: string) => {
+    updateItem(id, { descripcion: value });
+  };
+
+  const handleNumberChange = (
+    id: string,
+    field: Exclude<EquipmentEditableField, "descripcion">,
+    value: string
+  ) => {
+    const numericValue = Number(value);
+    const normalizedValue =
+      value === "" || Number.isNaN(numericValue) ? 0 : numericValue;
+    const sanitizedValue =
+      field === "vidaUtilAnios"
+        ? Math.max(Math.floor(normalizedValue), 0)
+        : Math.max(normalizedValue, 0);
+
+    updateItem(id, { [field]: sanitizedValue } as Pick<
+      EquipmentCostItem,
+      typeof field
+    >);
+  };
+
+  const handleBlur = (id: string, field: EquipmentEditableField) => {
+    setTouched((prev) => {
+      const current = prev[id] ?? {
+        descripcion: false,
+        costoAdquisicion: false,
+        valorResidual: false,
+        vidaUtilAnios: false
+      };
+      return {
+        ...prev,
+        [id]: {
+          ...current,
+          [field]: true
+        }
+      };
+    });
+  };
 
   const handleAdd = () => {
-    setError(null);
-
-    if (
-      draft.usefulLifeDeterminations === "" ||
-      draft.purchasePrice === "" ||
-      draft.calibrationPeriodDeterminations === ""
-    ) {
-      setError("Completa los datos principales del equipamiento");
-      return;
-    }
-
-    const parsed = equipmentSchema.safeParse({
-      name: draft.name.trim(),
-      model: draft.model.trim(),
-      usefulLifeDeterminations: Number(draft.usefulLifeDeterminations),
-      purchasePrice: Number(draft.purchasePrice),
-      calibrationCost: draft.calibrationCost === "" ? 0 : Number(draft.calibrationCost),
-      calibrationPeriodDeterminations: Number(
-        draft.calibrationPeriodDeterminations
-      )
-    });
-
-    if (!parsed.success) {
-      setError(parsed.error.issues[0]?.message ?? "Datos inválidos");
-      return;
-    }
-
     const newItem: EquipmentCostItem = {
       id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      ...parsed.data
+      descripcion: "",
+      costoAdquisicion: 0,
+      valorResidual: 0,
+      vidaUtilAnios: 0
     };
 
     onChange({ ...sublevel, items: [...sublevel.items, newItem] });
-    setDraft({
-      name: "",
-      model: "",
-      usefulLifeDeterminations: "",
-      purchasePrice: "",
-      calibrationCost: "",
-      calibrationPeriodDeterminations: ""
-    });
-  };
-
-  const handleItemChange = <K extends keyof EquipmentCostItem>(
-    id: string,
-    field: K,
-    value: string
-  ) => {
-    const updatedItems = sublevel.items.map((item) => {
-      if (item.id !== id) {
-        return item;
-      }
-
-      if (
-        field === "usefulLifeDeterminations" ||
-        field === "purchasePrice" ||
-        field === "calibrationCost" ||
-        field === "calibrationPeriodDeterminations"
-      ) {
-        const numericValue = Number(value);
-        return {
-          ...item,
-          [field]: Number.isNaN(numericValue) ? 0 : numericValue
-        };
-      }
-
-      return { ...item, [field]: value };
-    });
-
-    onChange({ ...sublevel, items: updatedItems });
   };
 
   const handleDelete = (id: string) => {
-    onChange({ ...sublevel, items: sublevel.items.filter((item) => item.id !== id) });
+    onChange({
+      ...sublevel,
+      items: sublevel.items.filter((item) => item.id !== id)
+    });
   };
 
-  const methodTooltip =
-    "Depreciación por determinación = (Costo de adquisición − Valor residual + Costos de instalación) / Vida útil (determinaciones).\nCalibración por determinación = Costo de calibración del período / Determinaciones del período.";
+  const errors = useMemo(() => {
+    return sublevel.items.map((item) => {
+      const descripcion =
+        item.descripcion.trim().length > 0
+          ? null
+          : "Ingresa una descripción";
+      const costoAdquisicion =
+        item.costoAdquisicion > 0 ? null : "Debe ser mayor que 0";
+
+      let valorResidual: string | null = null;
+      if (item.valorResidual < 0) {
+        valorResidual = "No puede ser negativo";
+      } else if (
+        item.costoAdquisicion > 0 &&
+        item.valorResidual > item.costoAdquisicion
+      ) {
+        valorResidual = "No puede superar el costo de adquisición";
+      }
+
+      const vidaUtilAnios =
+        item.vidaUtilAnios >= 1 ? null : "Debe ser mayor o igual a 1";
+
+      return {
+        id: item.id,
+        descripcion,
+        costoAdquisicion,
+        valorResidual,
+        vidaUtilAnios
+      };
+    });
+  }, [sublevel.items]);
+
+  const errorsById = useMemo(() => {
+    return new Map(errors.map((entry) => [entry.id, entry]));
+  }, [errors]);
+
+  const calculations = useMemo(() => {
+    return new Map(
+      sublevel.items.map((item) => {
+        const entry = errorsById.get(item.id);
+        const hasBlockingError = Boolean(
+          entry?.descripcion ||
+            entry?.costoAdquisicion ||
+            entry?.valorResidual ||
+            entry?.vidaUtilAnios
+        );
+
+        if (hasBlockingError) {
+          return [item.id, { annual: 0, monthly: 0 }] as const;
+        }
+
+        const annual = calculateEquipmentItemDepreciation(item);
+        const monthly = calculateEquipmentItemMonthlyDepreciation(item);
+
+        return [item.id, { annual, monthly }] as const;
+      })
+    );
+  }, [sublevel.items, errorsById]);
+
+  const hasBlockingErrors = errors.some((error) =>
+    Boolean(
+      error.descripcion ||
+        error.costoAdquisicion ||
+        error.valorResidual ||
+        error.vidaUtilAnios
+    )
+  );
+
+  const showGlobalError = hasBlockingErrors &&
+    sublevel.items.some((item) => {
+      const touch = touched[item.id];
+      return Boolean(
+        touch?.descripcion ||
+          touch?.costoAdquisicion ||
+          touch?.valorResidual ||
+          touch?.vidaUtilAnios
+      );
+    });
 
   return (
     <section
       className={`space-y-4 rounded-xl border p-4 ${appearance.container}`}
     >
-      <header className="flex items-center justify-between">
+      <header className="flex items-center justify-between gap-4">
         <div>
           <h3 className={`text-lg font-semibold ${appearance.header}`}>
             {sublevel.name}
@@ -1277,25 +1353,16 @@ function EquipmentSublevelSection({
           <p className={`text-sm ${appearance.description}`}>
             {sublevel.description}
           </p>
-          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
-            <span
-              className={`inline-flex items-center rounded-full border border-white/60 bg-white/80 px-3 py-1 font-medium ${appearance.header}`}
-              title={methodTooltip}
-            >
-              Método: Depreciación por servicios (unidades de análisis)
-            </span>
-            <a
-              href={appConfig.guides.equipmentDepreciationMethod}
-              target="_blank"
-              rel="noreferrer"
-              className={`inline-flex items-center gap-1 font-medium underline decoration-dotted underline-offset-4 transition ${appearance.header} hover:opacity-80`}
-            >
-              Ver guía
-            </a>
-          </div>
+          <p className="mt-3 rounded-lg border border-cyan-100 bg-cyan-50/80 p-3 text-xs text-cyan-900">
+            Nota: La depreciación se calcula por línea recta: (costo − valor
+            residual) / vida útil (años). Se muestra el cargo anual y su
+            equivalente mensual. Este criterio es el más simple y ampliamente
+            aceptado para asignar sistemáticamente el costo de un activo a lo
+            largo de su vida útil.
+          </p>
         </div>
         <span className="text-base font-semibold text-inta-green">
-          {currencyFormatter.format(subtotal)}
+          {formatARS(subtotal)}
         </span>
       </header>
 
@@ -1304,270 +1371,198 @@ function EquipmentSublevelSection({
           <thead className={`${appearance.tableHead} text-left`}>
             <tr>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Equipo
+                Descripción
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Modelo / referencia
+                Costo de adquisición (ARS)
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Vida útil (determinaciones)
+                Valor residual (ARS)
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Precio de compra
+                Vida útil (años)
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Costo de calibración
+                Depreciación anual (ARS)
               </th>
               <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Determinaciones por período de calibración
+                Depreciación mensual (ARS)
               </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                Costo por determinación
-              </th>
-              <th className={`px-3 py-2 font-medium ${appearance.header}`}>
+              <th className="px-3 py-2 text-center font-medium text-slate-700">
                 Acciones
               </th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-200">
+          <tbody className="divide-y divide-slate-100 bg-white/80">
             {sublevel.items.length === 0 ? (
               <tr>
                 <td
-                  colSpan={8}
                   className="px-3 py-6 text-center text-sm text-slate-500"
+                  colSpan={7}
                 >
-                  Carga cada equipo utilizado para distribuir su depreciación y calibración en el análisis.
+                  Agregá el equipamiento específico para calcular su depreciación.
                 </td>
               </tr>
-            ) : null}
-            {sublevel.items.map((item) => (
-              <tr key={item.id}>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    value={item.name}
-                    onChange={(event) =>
-                      handleItemChange(item.id, "name", event.target.value)
-                    }
-                    className="w-48 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="text"
-                    value={item.model}
-                    onChange={(event) =>
-                      handleItemChange(item.id, "model", event.target.value)
-                    }
-                    className="w-44 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min={1}
-                    step="1"
-                    value={item.usefulLifeDeterminations}
-                    onChange={(event) =>
-                      handleItemChange(
-                        item.id,
-                        "usefulLifeDeterminations",
-                        event.target.value
-                      )
-                    }
-                    className="w-32 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={item.purchasePrice}
-                    onChange={(event) =>
-                      handleItemChange(item.id, "purchasePrice", event.target.value)
-                    }
-                    className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min={0}
-                    step="0.01"
-                    value={item.calibrationCost}
-                    onChange={(event) =>
-                      handleItemChange(item.id, "calibrationCost", event.target.value)
-                    }
-                    className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2">
-                  <input
-                    type="number"
-                    min={1}
-                    step="1"
-                    value={item.calibrationPeriodDeterminations}
-                    onChange={(event) =>
-                      handleItemChange(
-                        item.id,
-                        "calibrationPeriodDeterminations",
-                        event.target.value
-                      )
-                    }
-                    className="w-36 rounded-md border border-slate-300 px-2 py-1 text-sm focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  />
-                </td>
-                <td className="px-3 py-2 text-right font-medium">
-                  {currencyFormatter.format(calculateEquipmentItemCost(item))}
-                </td>
-                <td className="px-3 py-2 text-right">
-                  <button
-                    type="button"
-                    onClick={() => handleDelete(item.id)}
-                    className={`rounded-full px-3 py-1 text-xs font-medium transition ${appearance.badge}`}
-                  >
-                    Eliminar
-                  </button>
-                </td>
-              </tr>
-            ))}
+            ) : (
+              sublevel.items.map((item) => {
+                const rowErrors = errorsById.get(item.id);
+                const rowTouched = touched[item.id];
+                const calculation = calculations.get(item.id) ?? {
+                  annual: 0,
+                  monthly: 0
+                };
+
+                const descriptionHasError =
+                  rowErrors?.descripcion && rowTouched?.descripcion;
+                const costHasError =
+                  rowErrors?.costoAdquisicion && rowTouched?.costoAdquisicion;
+                const residualHasError =
+                  rowErrors?.valorResidual && rowTouched?.valorResidual;
+                const lifeHasError =
+                  rowErrors?.vidaUtilAnios && rowTouched?.vidaUtilAnios;
+
+                return (
+                  <tr key={item.id}>
+                    <td className="px-3 py-2 align-top">
+                      <input
+                        type="text"
+                        value={item.descripcion}
+                        onChange={(event) =>
+                          handleDescriptionChange(item.id, event.target.value)
+                        }
+                        onBlur={() => handleBlur(item.id, "descripcion")}
+                        placeholder="Ej. Cromatógrafo gaseoso"
+                        className={`w-full rounded-md border px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue ${descriptionHasError ? "border-red-500" : "border-slate-300"}`}
+                      />
+                      {descriptionHasError ? (
+                        <p className="mt-1 text-xs text-red-600">
+                          {rowErrors?.descripcion}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <input
+                        type="number"
+                        min={0.01}
+                        step={0.01}
+                        value={
+                          item.costoAdquisicion > 0 ? item.costoAdquisicion : ""
+                        }
+                        onChange={(event) =>
+                          handleNumberChange(
+                            item.id,
+                            "costoAdquisicion",
+                            event.target.value
+                          )
+                        }
+                        onBlur={() => handleBlur(item.id, "costoAdquisicion")}
+                        placeholder="0,00"
+                        className={`w-full rounded-md border px-3 py-2 text-right focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue ${costHasError ? "border-red-500" : "border-slate-300"}`}
+                      />
+                      {costHasError ? (
+                        <p className="mt-1 text-xs text-red-600">
+                          {rowErrors?.costoAdquisicion}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <input
+                        type="number"
+                        min={0}
+                        step={0.01}
+                        value={item.valorResidual}
+                        onChange={(event) =>
+                          handleNumberChange(
+                            item.id,
+                            "valorResidual",
+                            event.target.value
+                          )
+                        }
+                        onBlur={() => handleBlur(item.id, "valorResidual")}
+                        placeholder="0,00"
+                        className={`w-full rounded-md border px-3 py-2 text-right focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue ${residualHasError ? "border-red-500" : "border-slate-300"}`}
+                      />
+                      {residualHasError ? (
+                        <p className="mt-1 text-xs text-red-600">
+                          {rowErrors?.valorResidual}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <input
+                        type="number"
+                        min={1}
+                        step={1}
+                        value={
+                          item.vidaUtilAnios > 0 ? item.vidaUtilAnios : ""
+                        }
+                        onChange={(event) =>
+                          handleNumberChange(
+                            item.id,
+                            "vidaUtilAnios",
+                            event.target.value
+                          )
+                        }
+                        onBlur={() => handleBlur(item.id, "vidaUtilAnios")}
+                        placeholder="Años"
+                        className={`w-full rounded-md border px-3 py-2 text-right focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue ${lifeHasError ? "border-red-500" : "border-slate-300"}`}
+                      />
+                      {lifeHasError ? (
+                        <p className="mt-1 text-xs text-red-600">
+                          {rowErrors?.vidaUtilAnios}
+                        </p>
+                      ) : null}
+                    </td>
+                    <td className="px-3 py-2 align-top text-right font-medium text-slate-900">
+                      {formatARS(calculation.annual)}
+                    </td>
+                    <td className="px-3 py-2 align-top text-right font-semibold text-inta-green">
+                      {formatARS(calculation.monthly)}
+                    </td>
+                    <td className="px-3 py-2 align-top text-center">
+                      <button
+                        type="button"
+                        onClick={() => handleDelete(item.id)}
+                        className="text-sm font-medium text-red-600 transition hover:text-red-700"
+                      >
+                        Eliminar
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })
+            )}
           </tbody>
         </table>
       </div>
 
-      <div
-        className={`space-y-2 rounded-lg bg-white/70 p-4 text-sm ${appearance.description}`}
-      >
-        <p className={`font-semibold ${appearance.header}`}>
-          Detalle por determinación
-        </p>
-        <dl className="space-y-1">
-          <div className="flex items-center justify-between gap-4">
-            <dt>Depreciación por determinación (ARS)</dt>
-            <dd className="font-semibold text-slate-900">
-              {currencyFormatter.format(totals.depreciation)}
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <dt>Calibración por determinación (ARS)</dt>
-            <dd className="font-semibold text-slate-900">
-              {currencyFormatter.format(totals.calibration)}
-            </dd>
-          </div>
-          <div className="flex items-center justify-between gap-4">
-            <dt>Total equipo por determinación (ARS)</dt>
-            <dd className="font-semibold text-slate-900">
-              {currencyFormatter.format(subtotal)}
-            </dd>
-          </div>
-        </dl>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <button
+          type="button"
+          onClick={handleAdd}
+          className="inline-flex items-center justify-center gap-2 rounded-lg bg-inta-blue px-3 py-2 text-sm font-medium text-white transition hover:bg-inta-blue/90"
+        >
+          <PlusIcon className="h-4 w-4" /> Agregar equipo
+        </button>
+        <div className="text-sm text-slate-600">
+          La depreciación se suma automáticamente al subtotal mensual.
+        </div>
       </div>
 
-      <div
-        className={`space-y-3 rounded-xl border border-dashed p-4 ${appearance.form}`}
-      >
-        <h4 className={`text-sm font-semibold ${appearance.header}`}>
-          Agregar equipamiento específico
-        </h4>
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Equipo
-            <input
-              type="text"
-              value={draft.name}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, name: event.target.value }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Ej. Cromatógrafo"
-            />
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Modelo / referencia
-            <input
-              type="text"
-              value={draft.model}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, model: event.target.value }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Detalle identificatorio"
-            />
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Vida útil (determinaciones)
-            <input
-              type="number"
-              min={1}
-              step="1"
-              value={draft.usefulLifeDeterminations}
-              onChange={(event) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  usefulLifeDeterminations: event.target.value
-                }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Ej. 10000"
-            />
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Precio de compra (ARS)
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={draft.purchasePrice}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, purchasePrice: event.target.value }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Valor actualizado"
-            />
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Costo de calibración (ARS)
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              value={draft.calibrationCost}
-              onChange={(event) =>
-                setDraft((prev) => ({ ...prev, calibrationCost: event.target.value }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Si no aplica, deja en 0"
-            />
-          </label>
-          <label className={`flex flex-col text-sm ${appearance.description}`}>
-            Determinaciones por período de calibración
-            <input
-              type="number"
-              min={1}
-              step="1"
-              value={draft.calibrationPeriodDeterminations}
-              onChange={(event) =>
-                setDraft((prev) => ({
-                  ...prev,
-                  calibrationPeriodDeterminations: event.target.value
-                }))
-              }
-              className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              placeholder="Estimación según frecuencia"
-            />
-          </label>
+      <div className="space-y-2 rounded-xl border border-slate-200 bg-white/70 p-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <h4 className={`text-base font-semibold ${appearance.header}`}>
+            Subtotal depreciación (Nivel 1 · b.3)
+          </h4>
+          <span className="text-base font-semibold text-inta-green">
+            {formatARS(subtotal)}
+          </span>
         </div>
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
-          <button
-            type="button"
-            onClick={handleAdd}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-inta-blue px-3 py-2 text-sm font-medium text-white transition hover:bg-inta-blue/90"
-          >
-            <PlusIcon className="h-4 w-4" /> Agregar equipamiento
-          </button>
-        </div>
+        {showGlobalError ? (
+          <p className="text-sm text-red-600">
+            Revisá los campos con error para continuar.
+          </p>
+        ) : null}
       </div>
     </section>
   );

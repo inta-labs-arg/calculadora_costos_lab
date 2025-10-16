@@ -1,8 +1,6 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import html2pdf from "html2pdf.js";
-import Papa from "papaparse";
 import type { LevelTotal } from "@/lib/cost-calculation";
 import type { ExchangeRateState } from "@/contexts/ExchangeRateContext";
 import { useHourlyRates } from "@/contexts/HourlyRatesContext";
@@ -323,9 +321,10 @@ export function SummaryPanel({
     }
   }, [resumenServicio]);
 
-  const handleExportCsv = useCallback(() => {
+  const handleExportCsv = useCallback(async () => {
     setExportingFormat("csv");
     try {
+      const Papa = (await import("papaparse")).default;
       const rows: CsvRow[] = [];
 
       const pushGeneralRow = (campo: string, valor: string | number | null) => {
@@ -451,6 +450,7 @@ export function SummaryPanel({
 
     setExportingFormat("pdf");
     try {
+      const html2pdf = (await import("html2pdf.js")).default;
       await html2pdf()
         .set({
           margin: 10,

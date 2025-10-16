@@ -38,7 +38,7 @@ export function IntroPanel() {
               className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/20 hover:text-white"
               href="#configuracion"
             >
-              Configuración
+              Determinación de tipo de cambio
             </a>
             <a
               className="rounded-full bg-white/10 px-4 py-2 transition hover:bg-white/20 hover:text-white"

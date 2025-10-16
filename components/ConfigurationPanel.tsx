@@ -163,7 +163,9 @@ export function ConfigurationPanel() {
     <section className="relative rounded-3xl border border-slate-200 bg-white/95 p-6 shadow-md">
       <div className="flex flex-col gap-6 lg:flex-row lg:items-start">
         <header className="max-w-xl space-y-1 lg:w-80 lg:flex-none">
-          <h2 className="text-lg font-semibold text-slate-900">Configuración</h2>
+          <h2 className="text-lg font-semibold text-slate-900">
+            Determinación de tipo de cambio
+          </h2>
           <p className="text-sm text-slate-600">
             Define el tipo de cambio de referencia y las observaciones
             complementarias para normalizar los insumos en pesos argentinos.
@@ -207,11 +209,6 @@ export function ConfigurationPanel() {
               />
             </label>
           </div>
-
-          <p className="text-xs text-slate-500">
-            Los valores manuales quedan guardados como respaldo si la consulta a
-            Monedapi no está disponible.
-          </p>
 
           <div className="space-y-3 rounded-xl border border-inta-blue/30 bg-white/70 p-4 text-sm text-slate-700">
             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">

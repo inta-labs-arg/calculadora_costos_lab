@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 
+export const dynamic = "force-dynamic";
+
 const BNA_PRIMARY_URL = "https://www.bna.com.ar/Personas";
 const BNA_FALLBACK_URL = "https://www.bna.com.ar/Cotizador/MonedasHistorico";
 const USER_AGENT_HEADER =
@@ -82,11 +84,12 @@ function extractTableSection(html: string, anchor: number): string | null {
   return html.slice(tableStart, tableEnd + "</table>".length);
 }
 
-function findRowValues(tableHtml: string, target: string): string[] | null {
+function findRowValues(tableHtml: string, target: string): string[][] {
   const rows = tableHtml.match(/<tr[\s\S]*?<\/tr>/gi);
   if (!rows) {
-    return null;
+    return [];
   }
+  const matches: string[][] = [];
   for (const rawRow of rows) {
     const columns = Array.from(
       rawRow.matchAll(/<(?:td|th)[^>]*>([\s\S]*?)<\/(?:td|th)>/gi),
@@ -97,10 +100,106 @@ function findRowValues(tableHtml: string, target: string): string[] | null {
     }
     const label = columns[0].toLowerCase();
     if (label.includes(target)) {
-      return columns;
+      matches.push(columns);
     }
   }
-  return null;
+  return matches;
+}
+
+function hourToMinutes(hour: string | null | undefined): number | null {
+  if (!hour) {
+    return null;
+  }
+  const match = hour.match(/^(\d{1,2}):(\d{2})$/);
+  if (!match) {
+    return null;
+  }
+  const hours = Number.parseInt(match[1], 10);
+  const minutes = Number.parseInt(match[2], 10);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
+function selectMostRecentRow(
+  rows: string[][],
+  fallbackContext: string
+): {
+  row: string[];
+  dateInfo: { displayDate: string; dateISO: string } | null;
+  hour: string | null;
+} | null {
+  let best: {
+    row: string[];
+    dateInfo: { displayDate: string; dateISO: string } | null;
+    hour: string | null;
+    index: number;
+  } | null = null;
+
+  rows.forEach((row, index) => {
+    const rowContext = row.join(" ");
+    const dateInfo = extractDateContext(rowContext);
+    const hour = extractHourContext(rowContext);
+    const candidate = { row, dateInfo, hour, index };
+
+    if (!best) {
+      best = candidate;
+      return;
+    }
+
+    const bestDateISO = best.dateInfo?.dateISO ?? null;
+    const candidateDateISO = candidate.dateInfo?.dateISO ?? null;
+
+    if (candidateDateISO && !bestDateISO) {
+      best = candidate;
+      return;
+    }
+
+    if (candidateDateISO && bestDateISO) {
+      if (candidateDateISO > bestDateISO) {
+        best = candidate;
+        return;
+      }
+
+      if (candidateDateISO === bestDateISO) {
+        const bestMinutes = hourToMinutes(best.hour);
+        const candidateMinutes = hourToMinutes(candidate.hour);
+        if (
+          candidateMinutes !== null &&
+          (bestMinutes === null || candidateMinutes > bestMinutes)
+        ) {
+          best = candidate;
+          return;
+        }
+      }
+    }
+
+    if (!best.dateInfo && !candidate.dateInfo && candidate.index > best.index) {
+      best = candidate;
+    }
+  });
+
+  if (!best) {
+    return null;
+  }
+
+  let dateInfo = best.dateInfo;
+  let hour = best.hour;
+
+  if (!dateInfo) {
+    dateInfo = extractDateContext(fallbackContext);
+  }
+
+  if (!hour) {
+    hour = extractHourContext(fallbackContext);
+  }
+
+  return {
+    row: best.row,
+    dateInfo,
+    hour
+  };
 }
 
 function extractFromCotizacionDivisas(html: string): ExtractionResult | null {
@@ -113,8 +212,12 @@ function extractFromCotizacionDivisas(html: string): ExtractionResult | null {
   if (!tableHtml) {
     return null;
   }
-  const rowValues = findRowValues(tableHtml, TARGET_LABEL);
-  if (!rowValues || rowValues.length < 3) {
+  const rowValuesList = findRowValues(tableHtml, TARGET_LABEL);
+  if (!rowValuesList.length) {
+    return null;
+  }
+  const rowValues = rowValuesList[0];
+  if (rowValues.length < 3) {
     return null;
   }
 
@@ -145,14 +248,21 @@ function extractFromHistorico(html: string): ExtractionResult | null {
   if (!tableHtml) {
     return null;
   }
-  const rowValues = findRowValues(tableHtml, TARGET_LABEL);
-  if (!rowValues || rowValues.length < 3) {
+  const rows = findRowValues(tableHtml, TARGET_LABEL);
+  if (!rows.length) {
     return null;
   }
 
-  const context = tableHtml;
-  const dateInfo = extractDateContext(html) ?? extractDateContext(context);
-  const horaActualizacion = extractHourContext(html) ?? extractHourContext(context);
+  const selection = selectMostRecentRow(rows, html);
+  if (!selection) {
+    return null;
+  }
+
+  const { row: rowValues, dateInfo, hour } = selection;
+  if (rowValues.length < 3) {
+    return null;
+  }
+
   const compra = normalizeNumber(rowValues[1]);
   const venta = normalizeNumber(rowValues[2]);
   if (typeof venta === "undefined") {
@@ -164,7 +274,7 @@ function extractFromHistorico(html: string): ExtractionResult | null {
     displayDate: dateInfo?.displayDate ?? new Date().toLocaleDateString("es-AR"),
     compra,
     venta,
-    horaActualizacion
+    horaActualizacion: hour
   };
 }
 

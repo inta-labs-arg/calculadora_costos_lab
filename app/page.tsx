@@ -46,7 +46,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
       sublevels: [
         {
           id: "insumosDirectos",
-          name: "Nivel 1 b.1) Insumos Directos",
+          name: "b.1) Insumos Directos",
           description:
             "Registra los materiales, reactivos y consumibles específicos que se emplean en cada determinación. Permite consignar formato de compra, precio de reposición y cantidades utilizadas para estimar el costo por muestra.",
           type: "insumos",
@@ -54,7 +54,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "manoDeObraDirecta",
-          name: "Nivel 1 b.2) Mano de obra Directa",
+          name: "b.2) Mano de obra Directa",
           description:
             "Estima las horas involucradas del personal que participa en la práctica (profesionales, técnicos y apoyos) y los salarios de referencia para calcular el costo laboral directo.",
           type: "manoObra",
@@ -87,7 +87,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "equipamientoEspecifico",
-          name: "Nivel 1 b.3) Equipamiento específico",
+          name: "b.3) Equipamiento específico",
           description:
             "Permite registrar la depreciación lineal del equipamiento específico utilizado en la determinación, contemplando costo de adquisición, valor residual y vida útil en años.",
           type: "equipamiento",
@@ -104,7 +104,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
       sublevels: [
         {
           id: "materialesNoDescartables",
-          name: "Nivel 2 c.1) Materiales no descartables",
+          name: "c.1) Materiales no descartables",
           description:
             "Registra materiales reutilizables (jeringas de vidrio, tubos, frascos, etc.) considerando su costo mensual de reposición y el prorrateo por determinación realizada.",
           type: "shared-resource",
@@ -112,7 +112,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "equipamientoMenor",
-          name: "Nivel 2 c.2) Depreciación de equipamiento menor",
+          name: "c.2) Depreciación de equipamiento menor",
           description:
             "Calcula la depreciación lineal de los equipos menores de uso transversal (balanzas, heladeras, campanas, etc.) y asigna su costo unitario en función de las determinaciones mensuales del laboratorio.",
           type: "indirect-equipment",
@@ -120,7 +120,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "mantenimientoEquipamiento",
-          name: "Nivel 2 c.3) Mantenimiento/Calibración de equipos",
+          name: "c.3) Mantenimiento/Calibración de equipos",
           description:
             "Incluye honorarios, repuestos y servicios de mantenimiento y calibración periódica de los equipos, prorrateados según la actividad mensual.",
           type: "shared-resource",
@@ -128,7 +128,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "infraestructura",
-          name: "Nivel 2 c.4) Costos de Infraestructura",
+          name: "c.4) Costos de Infraestructura",
           description:
             "Agrupa servicios y apoyos generales como energía, gas, agua, limpieza, administración y comunicaciones necesarios para el funcionamiento del laboratorio.",
           type: "shared-resource",
@@ -145,7 +145,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
       sublevels: [
         {
           id: "acreditacionTercerasPartes",
-          name: "Nivel 3 d.1) Acreditación de Terceras Partes",
+          name: "d.1) Acreditación de Terceras Partes",
           description:
             "Incluye los aranceles y auditorías requeridas por el Organismo Argentino de Acreditación (OAA) bajo la Norma ISO/IEC 17025 para garantizar la competencia técnica.",
           type: "shared-resource",
@@ -153,7 +153,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "monitoreoRegulatorio",
-          name: "Nivel 3 d.2) Monitoreo de Organismos Regulatorios",
+          name: "d.2) Monitoreo de Organismos Regulatorios",
           description:
             "Considera inspecciones, tasas y auditorías asociadas al cumplimiento de normativas de SENASA y ANMAT que habilitan las determinaciones oficiales.",
           type: "shared-resource",
@@ -161,7 +161,7 @@ function createInitialLevels(globalDeterminations: number): LevelState[] {
         },
         {
           id: "ensayosInterlaboratorio",
-          name: "Nivel 3. d.3) Participación de Ensayos Interlaboratorio",
+          name: "d.3) Participación de Ensayos Interlaboratorio",
           description:
             "Registra las inscripciones y envíos necesarios para participar en comparaciones de desempeño obligatorias o recomendadas que respaldan la calidad analítica.",
           type: "shared-resource",

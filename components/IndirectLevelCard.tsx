@@ -484,6 +484,9 @@ function SharedResourceSublevelSection({
     [sublevel]
   );
   const isInfrastructureSublevel = sublevel.id === infrastructureSublevelId;
+  const isMaintenanceSublevel = maintenanceSublevelIds.has(
+    sublevel.id as MaintenanceSublevelId
+  );
   const [draft, setDraft] = useState({
     concept: "",
     monthlyCost: "",

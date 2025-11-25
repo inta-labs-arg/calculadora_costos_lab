@@ -904,10 +904,15 @@ function LaborSublevelSection({
   const errors = useMemo(() => {
     return sublevel.items.map((item) => ({
       id: item.id,
-      quantity: item.quantity > 0 ? null : "Debe ser mayor que 0",
-      totalHours: item.totalHours > 0 ? null : "Debe ser mayor que 0",
+      quantity: null,
+      totalHours:
+        item.quantity === 0 || item.totalHours > 0
+          ? null
+          : "Debe ser mayor que 0",
       monthlySalary:
-        item.monthlySalary > 0 ? null : "Debe ser mayor que 0"
+        item.quantity === 0 || item.monthlySalary > 0
+          ? null
+          : "Debe ser mayor que 0"
     }));
   }, [sublevel.items]);
 
@@ -991,10 +996,10 @@ function LaborSublevelSection({
                   </label>
                   <input
                     type="number"
-                    min={1}
+                    min={0}
                     step={1}
                     inputMode="numeric"
-                    value={item.quantity > 0 ? item.quantity : ""}
+                    value={item.quantity}
                     onChange={(event) =>
                       handleNumberChange(item.id, "quantity", event.target.value)
                     }
@@ -1014,10 +1019,10 @@ function LaborSublevelSection({
                   </label>
                   <input
                     type="number"
-                    min={1}
+                    min={0}
                     step={0.5}
                     inputMode="decimal"
-                    value={item.totalHours > 0 ? item.totalHours : ""}
+                    value={item.totalHours}
                     onChange={(event) =>
                       handleNumberChange(item.id, "totalHours", event.target.value)
                     }
@@ -1037,10 +1042,10 @@ function LaborSublevelSection({
                   </label>
                   <input
                     type="number"
-                    min={1}
+                    min={0}
                     step={1000}
                     inputMode="decimal"
-                    value={item.monthlySalary > 0 ? item.monthlySalary : ""}
+                    value={item.monthlySalary}
                     onChange={(event) =>
                       handleNumberChange(
                         item.id,

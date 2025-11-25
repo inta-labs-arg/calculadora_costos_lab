@@ -99,20 +99,7 @@ const maintenanceFormSchema = z
             "Ingresá las determinaciones mensuales promedio (detMes)"
         })
         .gt(0, "Las determinaciones deben ser mayores a cero")
-    ),
-    dispFactor: sanitizeNaN(
-      z
-        .number({
-          invalid_type_error: "Ingresá el factor de disponibilidad"
-        })
-        .gt(0, "El factor de disponibilidad debe ser mayor a 0")
-        .lte(1, "El factor de disponibilidad no puede superar 1")
-    ),
-    ipcFactor: sanitizeNaN(
-      z
-        .number({ invalid_type_error: "Ingresá el factor de IPC" })
-        .gte(0, "El IPC no puede ser negativo")
-    ).optional()
+    )
   })
   .refine(
     (data) =>
@@ -870,7 +857,7 @@ type MaintenanceCalculationResult = {
   ready: boolean;
   months: Decimal | null;
   shortPeriod: boolean;
-  ctmAdjusted: Decimal | null;
+  ctm: Decimal | null;
   cmm: Decimal | null;
   cam: Decimal | null;
   effectiveDeterminations: Decimal | null;
@@ -905,8 +892,6 @@ function MaintenanceEquipmentSection({
     mode: "onChange",
     defaultValues: {
       equipmentName: "",
-      dispFactor: 1,
-      ipcFactor: 1,
       detMes:
         useGlobalDeterminations && globalDeterminations > 0
           ? globalDeterminations
@@ -933,15 +918,13 @@ function MaintenanceEquipmentSection({
   const fechaInicio = watch("fechaInicio");
   const fechaFin = watch("fechaFin");
   const detMes = watch("detMes");
-  const dispFactor = watch("dispFactor");
-  const ipcFactor = watch("ipcFactor");
 
   const results = useMemo<MaintenanceCalculationResult>(() => {
     const baseResult: MaintenanceCalculationResult = {
       ready: false,
       months: null,
       shortPeriod: false,
-      ctmAdjusted: null,
+      ctm: null,
       cmm: null,
       cam: null,
       effectiveDeterminations: null,
@@ -961,8 +944,7 @@ function MaintenanceEquipmentSection({
       !isValidNumber(ctm) ||
       !isValidDate(fechaInicio) ||
       !isValidDate(fechaFin) ||
-      !isValidNumber(detMes) ||
-      !isValidNumber(dispFactor)
+      !isValidNumber(detMes)
     ) {
       return baseResult;
     }
@@ -986,19 +968,11 @@ function MaintenanceEquipmentSection({
 
     const shortPeriod = months.lt(0.1);
     const ctmDecimal = new Decimal(ctm);
-    const ipcValue =
-      isValidNumber(ipcFactor) && ipcFactor !== undefined ? ipcFactor : undefined;
-    const ctmAdjusted =
-      ipcValue !== undefined && ipcValue > 0
-        ? ctmDecimal.times(ipcValue)
-        : ctmDecimal;
-
-    const cmm = ctmAdjusted.dividedBy(months);
+    const cmm = ctmDecimal.dividedBy(months);
     const cam = cmm.times(12);
 
     const detMesDecimal = new Decimal(detMes);
-    const dispDecimal = new Decimal(dispFactor);
-    const effectiveDeterminations = detMesDecimal.times(dispDecimal);
+    const effectiveDeterminations = detMesDecimal;
     const detWarning = detMesDecimal.lte(0);
 
     const ipd =
@@ -1010,7 +984,7 @@ function MaintenanceEquipmentSection({
       ready: true,
       months,
       shortPeriod,
-      ctmAdjusted,
+      ctm: ctmDecimal,
       cmm,
       cam,
       effectiveDeterminations,
@@ -1020,13 +994,13 @@ function MaintenanceEquipmentSection({
       daysRemainder,
       baseMonthDays
     };
-  }, [ctm, fechaInicio, fechaFin, detMes, dispFactor, ipcFactor]);
+  }, [ctm, fechaInicio, fechaFin, detMes]);
 
   const [submitError, setSubmitError] = useState<string | null>(null);
 
   useEffect(() => {
     setSubmitError(null);
-  }, [ctm, fechaInicio, fechaFin, detMes, dispFactor, ipcFactor]);
+  }, [ctm, fechaInicio, fechaFin, detMes]);
 
   const handleAddMaintenance = handleSubmit((data) => {
     if (
@@ -1034,7 +1008,7 @@ function MaintenanceEquipmentSection({
       !results.cmm ||
       !results.effectiveDeterminations ||
       results.ipd === null ||
-      !results.ctmAdjusted ||
+      !results.ctm ||
       !results.months
     ) {
       setSubmitError(
@@ -1052,7 +1026,7 @@ function MaintenanceEquipmentSection({
     const determinationsValue = results.effectiveDeterminations
       .toDecimalPlaces(6, Decimal.ROUND_HALF_UP)
       .toNumber();
-    const ctmAdjustedValue = results.ctmAdjusted
+    const ctmValue = results.ctm
       .toDecimalPlaces(6, Decimal.ROUND_HALF_UP)
       .toNumber();
     const camValue = results.cam
@@ -1071,13 +1045,10 @@ function MaintenanceEquipmentSection({
       determinations: determinationsValue,
       isFixed: true,
       maintenanceDetails: {
-        ctm: data.ctm,
-        ctmAdjusted: ctmAdjustedValue,
+        ctm: ctmValue,
         cam: camValue,
         months: monthsValue,
         detMes: data.detMes,
-        dispFactor: data.dispFactor,
-        ipcFactor: data.ipcFactor ?? null,
         period: {
           start: data.fechaInicio.toISOString(),
           end: data.fechaFin.toISOString()
@@ -1114,9 +1085,9 @@ function MaintenanceEquipmentSection({
             .toNumber()
         )
       : "—";
-  const ctmAdjustedDisplay =
-    results.ready && results.ctmAdjusted
-      ? currencyFormatter.format(results.ctmAdjusted.toNumber())
+  const ctmDisplay =
+    results.ready && results.ctm
+      ? currencyFormatter.format(results.ctm.toNumber())
       : "—";
   const cmmDisplay =
     results.ready && results.cmm
@@ -1228,32 +1199,41 @@ function MaintenanceEquipmentSection({
               )}
             </label>
             <label className="flex flex-col space-y-1">
-              <span className="flex items-center gap-2" title="Proporción del tiempo operativo del equipo respecto del período analizado. 1 equivale al 100% de disponibilidad.">
-                Factor de disponibilidad (0 a 1)
-                <InfoIcon
-                  className="h-4 w-4 text-emerald-700"
-                  aria-label="¿Qué es el factor de disponibilidad?"
-                  title="Porcentaje de disponibilidad del equipo durante el período: 1 = 100%, 0,8 = 80%, etc."
-                />
+              <span>
+                Determinaciones mensuales promedio (detMes)
+                {useGlobalDeterminations ? " (DM global)" : null}
               </span>
               <input
                 type="number"
                 min={0}
-                max={1}
                 step="0.01"
-                placeholder="1 = 100%"
-                className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                {...register("dispFactor", { valueAsNumber: true })}
+                readOnly={useGlobalDeterminations && globalDeterminations > 0}
+                className={`rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue ${
+                  useGlobalDeterminations && globalDeterminations > 0
+                    ? "bg-slate-100"
+                    : ""
+                }`}
+                placeholder="300"
+                {...register("detMes", { valueAsNumber: true })}
               />
-              {errors.dispFactor ? (
+              {errors.detMes ? (
                 <span className="text-xs text-rose-600">
-                  {errors.dispFactor.message}
+                  {errors.detMes.message}
+                </span>
+              ) : useGlobalDeterminations ? (
+                <span className="text-xs text-emerald-700">
+                  Se utiliza el valor global de determinaciones mensuales para el prorrateo.
                 </span>
               ) : (
                 <span className="text-xs text-emerald-700">
-                  Considerá la disponibilidad real del equipo.
+                  Promedio mensual de determinaciones soportadas por el equipo.
                 </span>
               )}
+              {showGlobalDeterminationsWarning ? (
+                <span className="text-xs text-amber-700">
+                  Definí la base global de prorrateo en la cabecera de Nivel 2 para precargar este campo.
+                </span>
+              ) : null}
             </label>
           </div>
 
@@ -1294,81 +1274,6 @@ function MaintenanceEquipmentSection({
             </label>
           </div>
 
-          <label className="flex flex-col space-y-1">
-            <span>
-              Determinaciones mensuales promedio (detMes)
-              {useGlobalDeterminations ? " (DM global)" : null}
-            </span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              readOnly={useGlobalDeterminations && globalDeterminations > 0}
-              className={`rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue ${
-                useGlobalDeterminations && globalDeterminations > 0
-                  ? "bg-slate-100"
-                  : ""
-              }`}
-              placeholder="300"
-              {...register("detMes", { valueAsNumber: true })}
-            />
-            {errors.detMes ? (
-              <span className="text-xs text-rose-600">
-                {errors.detMes.message}
-              </span>
-            ) : useGlobalDeterminations ? (
-              <span className="text-xs text-emerald-700">
-                Se utiliza el valor global de determinaciones mensuales para el prorrateo.
-              </span>
-            ) : (
-              <span className="text-xs text-emerald-700">
-                Promedio mensual de determinaciones soportadas por el equipo.
-              </span>
-            )}
-            {showGlobalDeterminationsWarning ? (
-              <span className="text-xs text-amber-700">
-                Definí la base global de prorrateo en la cabecera de Nivel 2 para precargar este campo.
-              </span>
-            ) : null}
-          </label>
-
-          <label className="flex flex-col space-y-1">
-            <span className="flex items-center gap-2">
-              Ajuste IPC manual (opcional)
-              <InfoIcon
-                className="h-4 w-4 text-emerald-700"
-                aria-label="Ingresá el factor acumulado de IPC (opcional)."
-                title="Ingresá el factor acumulado de IPC (opcional). Ver IPC INDEC y calculadora de variaciones."
-              />
-            </span>
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              placeholder="1.00"
-              className="rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-              {...register("ipcFactor", { valueAsNumber: true })}
-            />
-            {errors.ipcFactor ? (
-              <span className="text-xs text-rose-600">
-                {errors.ipcFactor.message}
-              </span>
-            ) : (
-              <span className="text-xs text-emerald-700">
-                Ingresá el factor acumulado de IPC (opcional).{" "}
-                <a
-                  className="font-medium text-inta-blue underline decoration-dotted underline-offset-2"
-                  href="https://www.indec.gob.ar/indec/web/Nivel4-Tema-3-5-31"
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  Ver IPC INDEC y calculadora de variaciones
-                </a>
-                .
-              </span>
-            )}
-          </label>
-
           <div className="flex flex-col items-end gap-2">
             <button
               type="submit"
@@ -1405,18 +1310,18 @@ function MaintenanceEquipmentSection({
             <div className="flex items-center justify-between text-sm">
               <span
                 className="font-medium text-emerald-900"
-                title="CTM ajustado = CTM × factor de IPC (si se ingresó)."
+                title="CTM declarado para el período considerado."
               >
-                CTM ajustado
+                CTM (ARS)
               </span>
               <span className="font-semibold text-emerald-800">
-                {ctmAdjustedDisplay}
+                {ctmDisplay}
               </span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span
                 className="font-medium text-emerald-900"
-                title="CMM = CTM ajustado ÷ meses prorrateados (M)."
+                title="CMM = CTM ÷ meses prorrateados (M)."
               >
                 Costo mensual de mantenimiento (CMM)
               </span>
@@ -1438,9 +1343,9 @@ function MaintenanceEquipmentSection({
             <div className="flex items-center justify-between text-sm">
               <span
                 className="font-medium text-emerald-900"
-                title="Determinaciones efectivas = detMes × factor de disponibilidad."
+                title="Determinaciones mensuales promedio informadas (detMes)."
               >
-                Determinaciones efectivas (detMes × dispFactor)
+                Determinaciones mensuales (detMes)
               </span>
               <span className="font-semibold text-emerald-800">
                 {effectiveDeterminationsDisplay}
@@ -1449,7 +1354,7 @@ function MaintenanceEquipmentSection({
             <div className="flex items-center justify-between text-sm">
               <span
                 className="font-medium text-emerald-900"
-                title="IPD = CMM ÷ determinaciones efectivas."
+                title="IPD = CMM ÷ determinaciones mensuales (detMes)."
               >
                 Incidencia por determinación (IPD)
               </span>
@@ -1500,7 +1405,7 @@ function MaintenanceEquipmentSection({
                   Período analizado
                 </th>
                 <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                  CTM ajustado (ARS)
+                  CTM (ARS)
                 </th>
                 <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                   Meses prorrateados (M)
@@ -1509,7 +1414,7 @@ function MaintenanceEquipmentSection({
                   CMM (ARS/mes)
                 </th>
                 <th className={`px-3 py-2 font-medium ${appearance.header}`}>
-                  Determinaciones efectivas
+                  Determinaciones mensuales (detMes)
                 </th>
                 <th className={`px-3 py-2 font-medium ${appearance.header}`}>
                   IPD (ARS/det)
@@ -1547,20 +1452,13 @@ function MaintenanceEquipmentSection({
                     const endLabel = dateFormatter.format(endDate);
                     periodLabel = `${startLabel} → ${endLabel}`;
                     const detMesLabel = numberFormatter.format(details.detMes);
-                    const dispLabel = details.dispFactor.toLocaleString("es-AR", {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    });
-                    periodTitle = `Período analizado: ${startLabel} al ${endLabel}. detMes promedio: ${detMesLabel}. Factor de disponibilidad: ${dispLabel}.`;
-                    if (details.ipcFactor && details.ipcFactor !== 1) {
-                      periodTitle += ` Ajuste IPC aplicado: ×${details.ipcFactor}.`;
-                    }
+                    periodTitle = `Período analizado: ${startLabel} al ${endLabel}. detMes promedio: ${detMesLabel}.`;
                   }
                 }
 
-                const ctmAdjustedCell =
-                  details && Number.isFinite(details.ctmAdjusted)
-                    ? currencyFormatter.format(details.ctmAdjusted)
+                const ctmCell =
+                  details && Number.isFinite(details.ctm)
+                    ? currencyFormatter.format(details.ctm)
                     : "—";
                 const monthsCell =
                   details && Number.isFinite(details.months)
@@ -1589,11 +1487,8 @@ function MaintenanceEquipmentSection({
                     <td className="px-3 py-2" title={periodTitle}>
                       {periodLabel}
                     </td>
-                    <td
-                      className="px-3 py-2"
-                      title="CTM ajustado = CTM × factor de IPC (si se ingresó)."
-                    >
-                      {ctmAdjustedCell}
+                    <td className="px-3 py-2" title="CTM declarado">
+                      {ctmCell}
                     </td>
                     <td
                       className="px-3 py-2"
@@ -1603,19 +1498,19 @@ function MaintenanceEquipmentSection({
                     </td>
                     <td
                       className="px-3 py-2"
-                      title="CMM = CTM ajustado ÷ meses prorrateados (M)."
+                      title="CMM = CTM ÷ meses prorrateados (M)."
                     >
                       {cmmCell}
                     </td>
                     <td
                       className="px-3 py-2"
-                      title="Determinaciones efectivas = detMes × factor de disponibilidad."
+                      title="Determinaciones mensuales promedio (detMes)."
                     >
                       {determinationsCell}
                     </td>
                     <td
                       className="px-3 py-2"
-                      title="IPD = CMM ÷ determinaciones efectivas."
+                      title="IPD = CMM ÷ determinaciones mensuales (detMes)."
                     >
                       {ipdCell}
                     </td>

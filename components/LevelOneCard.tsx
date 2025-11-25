@@ -61,26 +61,7 @@ const supplyCalculatorSchema = z.object({
       invalid_type_error: "Indica la cantidad utilizada en la determinación"
     })
     .finite("Ingresa un número válido")
-    .min(0, "La cantidad debe ser mayor o igual a cero"),
-  mermaFactor: z
-    .preprocess((value) => {
-      if (
-        value === "" ||
-        value === null ||
-        typeof value === "undefined" ||
-        (typeof value === "number" && Number.isNaN(value))
-      ) {
-        return undefined;
-      }
-      return value;
-    },
-    z
-      .number({ invalid_type_error: "Ingresa un valor entre 0 y 1" })
-      .finite("Ingresa un valor entre 0 y 1")
-      .min(0, "La merma no puede ser negativa")
-      .max(1, "La merma no puede superar 1")
-    )
-    .optional()
+    .min(0, "La cantidad debe ser mayor o igual a cero")
 });
 
 type SupplyCalculatorFormValues = z.infer<typeof supplyCalculatorSchema>;
@@ -321,8 +302,7 @@ function SupplySublevelSection({
       cantidadPresentacion: 0,
       precioPresentacion: 0,
       uomUso: "g",
-      cantidadUsada: 0,
-      mermaFactor: 0
+      cantidadUsada: 0
     }
   });
 
@@ -331,7 +311,6 @@ function SupplySublevelSection({
   const precioPresentacion = watch("precioPresentacion");
   const uomUso = watch("uomUso");
   const cantidadUsada = watch("cantidadUsada");
-  const mermaFactor = watch("mermaFactor");
 
   useEffect(() => {
     if (!dirtyFields.uomUso && uomUso !== uomBase) {
@@ -367,13 +346,10 @@ function SupplySublevelSection({
       } as const;
     }
 
-    const mermaDecimal = new Decimal(mermaFactor ?? 0);
     const precioUnitario = new Decimal(precioPresentacion).div(
       new Decimal(cantidadPresentacion)
     );
-    const cantidadEfectiva = new Decimal(cantidadUsada).mul(
-      mermaDecimal.plus(1)
-    );
+    const cantidadEfectiva = new Decimal(cantidadUsada);
 
     let warning: string | null = null;
     let cantidadEfectivaBase: Decimal | null = cantidadEfectiva;
@@ -415,14 +391,13 @@ function SupplySublevelSection({
       precioUnitario,
       cantidadEfectiva,
       cantidadEfectivaBase,
-      costoParcial,
-      warning
-    } as const;
+    costoParcial,
+    warning
+  } as const;
   }, [
     cantidadPresentacion,
     cantidadUsada,
     isValid,
-    mermaFactor,
     precioPresentacion,
     uomBase,
     uomUso
@@ -745,27 +720,6 @@ function SupplySublevelSection({
                 ) : (
                   <span className="mt-1 text-xs text-slate-500">
                     Expresada en la unidad de uso.
-                  </span>
-                )}
-              </label>
-              <label className={`flex flex-col text-sm ${appearance.description}`}>
-                Merma (factor opcional)
-                <input
-                  type="number"
-                  step="0.001"
-                  min={0}
-                  max={1}
-                  {...register("mermaFactor", { valueAsNumber: true })}
-                  className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
-                  placeholder="Ej. 0,02"
-                />
-                {errors.mermaFactor ? (
-                  <span className="mt-1 text-xs text-red-600">
-                    {errors.mermaFactor.message}
-                  </span>
-                ) : (
-                  <span className="mt-1 text-xs text-slate-500">
-                    Entre 0 y 1. Ej.: 0,02 = 2% adicional.
                   </span>
                 )}
               </label>

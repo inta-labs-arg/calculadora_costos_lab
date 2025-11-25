@@ -311,12 +311,13 @@ function SupplySublevelSection({
   const precioPresentacion = watch("precioPresentacion");
   const uomUso = watch("uomUso");
   const cantidadUsada = watch("cantidadUsada");
+  const [hasCustomUseUnit, setHasCustomUseUnit] = useState(false);
 
   useEffect(() => {
-    if (!dirtyFields.uomUso && uomUso !== uomBase) {
+    if (!hasCustomUseUnit && uomUso !== uomBase) {
       setValue("uomUso", uomBase, { shouldDirty: false, shouldValidate: true });
     }
-  }, [dirtyFields.uomUso, setValue, uomBase, uomUso]);
+  }, [hasCustomUseUnit, setValue, uomBase, uomUso]);
 
   const [addStatus, setAddStatus] = useState<"idle" | "success" | "error">(
     "idle"
@@ -690,7 +691,9 @@ function SupplySublevelSection({
               <label className={`flex flex-col text-sm ${appearance.description}`}>
                 Unidad de uso
                 <select
-                  {...register("uomUso")}
+                  {...register("uomUso", {
+                    onChange: () => setHasCustomUseUnit(true)
+                  })}
                   className="mt-1 rounded-md border border-slate-300 px-3 py-2 focus:border-inta-blue focus:outline-none focus:ring-1 focus:ring-inta-blue"
                 >
                   {supplyUnitOptions.map((unit) => (

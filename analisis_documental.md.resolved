@@ -1,0 +1,89 @@
+# Análisis Técnico: Calculadora de Costos de Servicios de Laboratorio INTA
+
+## 1. Análisis Funcional
+
+**Propósito Principal y Problema que Resuelve**
+La aplicación es una herramienta web financiera diseñada para estimar con precisión el costo unitario de un servicio de laboratorio rutinario del INTA (Instituto Nacional de Tecnología Agropecuaria). Resuelve el problema de la falta de estandarización y trazabilidad en la cotización de servicios analíticos, permitiendo a los laboratorios desglosar sus costos de manera metodológica para evitar subfacturaciones y justificar sus presupuestos. 
+
+**Flujo Funcional Principal (End-to-End)**
+1. **Entrada de Datos del Servicio:** El usuario ingresa el nombre del servicio y del laboratorio (ej. Análisis microbiológico).
+2. **Carga Estructurada por Niveles:** La interfaz guía al usuario a través de cinco niveles acumulativos:
+   - *Nivel 1 (Costos Directos):* Carga de insumos, horas de personal (profesionales, técnicos) y depreciación de equipos específicos.
+   - *Nivel 2 (Costos Indirectos):* Prorrateo de infraestructura (energía, limpieza, gas), mantenimiento, calibración y equipamiento menor distribuido en base a las determinaciones mensuales.
+   - *Nivel 3 (Acreditaciones):* Costos regulatorios (SENASA, ANMAT, ISO 17025) y ensayos interlaboratorios.
+   - *Niveles 4 y 5 (Márgenes Institucionales):* Aplicación de porcentajes sobre la base acumulada para sostener centros de investigación y cobertura de INTA.
+3. **Cálculo en Tiempo Real:** A medida que se ingresan los datos, el motor de cálculo actualiza los subtotales por nivel y el costo total.
+4. **Resumen y Exportación:** Se presenta un panel de resumen económico (en ARS y USD, obteniendo la cotización de la API del BNA). El usuario puede exportar los supuestos de cálculo a un formato estructurado (JSON) para su posterior revisión o almacenamiento.
+
+## 2. Arquitectura y Diseño
+
+**Tipo de Arquitectura**
+Es una **Arquitectura Front-End Single Page Application (SPA) / Monolito Modular en el cliente**, construida sobre el framework Next.js utilizando el App Router. La lógica de estado y cálculo reside fuertemente en el cliente (React Hooks y Contexts).
+
+**Estructura de Carpetas**
+- `app/`: Enrutamiento principal de Next.js. Contiene [page.tsx](file:///c:/projects/inta_calculadora_costos_lab/app/page.tsx) que orquesta la interfaz principal y endpoints `/api/` (ej. integración con backend de cotizaciones).
+- `components/`: Componentes de interfaz de usuario de React, modulares y reutilizables (`LevelOneCard`, `SummaryPanel`, etc.).
+- `contexts/`: Manejo de estado global para datos transversales (`ExchangeRateContext`, `HourlyRatesContext`).
+- `lib/`: Capa de dominio y utilidades. Contiene el corazón de la aplicación matemática ([cost-calculation.ts](file:///c:/projects/inta_calculadora_costos_lab/lib/cost-calculation.ts)), helpers para APIs ([monedapi.ts](file:///c:/projects/inta_calculadora_costos_lab/lib/monedapi.ts)) y utilidades de moneda.
+- `docs/` y `__tests__/`: Archivos de especificación (`features`) y pruebas unitarias usando Vitest.
+
+**Decisiones de Diseño y Patrones**
+- **Separation of Concerns (SoC):** La lógica de cálculo financiero puro está extraída en [lib/cost-calculation.ts](file:///c:/projects/inta_calculadora_costos_lab/lib/cost-calculation.ts). Los componentes de React se limitan a la presentación y al despacho de eventos.
+- **State Management Local y de Contexto:** Se emplea `useState` y `useMemo` a nivel de página para optimizar renderizados en interacciones complejas, delegando en Context API las tasas de cambio y valores hora que afectan globalmente.
+- **Feature Toggles/Polymorphic States:** El modelo de datos usa tipos discriminados (ej. `type: "direct-group" | "indirect-group" | "percentage"`) para renderizar componentes específicos dinámicamente (`LevelOneCard` vs `IndirectLevelCard`).
+
+## 3. Tecnologías y Stack
+
+- **Framework Principal:** Next.js (v13.5.6)
+- **Librería de UI:** React (v18.2.0)
+- **Lenguaje:** TypeScript (v5.2.2) para tipado estático estricto.
+- **Estilos:** Tailwind CSS (v3.3.3) para estilos utility-first e interfaces responsivas.
+- **Lógica Matemática y Utilidades:** Decimal.js (precisión decimal en costos), Date-fns (manejo de fechas).
+- **Parsers y Exportación:** Papaparse (para manejar ingestas/exportaciones CSV eventualmente) y manipulaciones nativas JSON.
+- **Testing:** Vitest y Testing Library para pruebas unitarias de la lógica de costos y renderizado de componentes.
+- **Integraciones:** Consulta a API externa (`monedapi.ar`) a través de un proxy robusto en Next.js (Serverless functions) con caché y reintentos (abort controllers).
+- **Entorno de Ejecución:** Diseñado para serverless edge (Vercel) para el hosting del frontend y el proxy de la API. Localmente corre bajo Node.js.
+
+## 4. Proceso de Desarrollo (Iteración Humano + IA)
+
+**Análisis del Historial (152 commits, 67 merges de PRs)**
+- **Metodología Iterativa:** El proyecto demuestra un flujo de trabajo intensamente iterativo y ágil basado en Pull Requests frecuentes (casi la mitad de los commits son mergeos).
+- **Colaboración IA-Humano:** Las ramas fuente llevan el prefijo `Mauropinotti/codex/`, lo cual es evidencia inequívoca de que las features fueron generadas y propuestas por un agente IA (probablemente GitHub Copilot Workspace, Cursor o un agente autónomo de código bajo el alias "codex"). El humano operó como "Reviewer" y "Product Owner", fusionando ("Merge pull request") el código iterativamente.
+- **Evolución:**
+  1. *Estructuración Inicial:* Comenzó con un prototipo UI básico (Initial commit: "develop-laboratory-cost-calculator-in-next.js").
+  2. *Refinamiento de Dominio:* Se evidencia refactorización profunda, como la reorganización de niveles (ej. "reorganize-nivel-1-into-sublevels"), demostrando que a medida que aumentaba el entendimiento de la guía metodológica, la arquitectura de datos fue corregida por la IA a pedido del humano.
+  3. *Optimización de UX:* Cambios posteriores iteraron sobre las vistas (ej. arreglos en "IndirectLevelCard").
+- **Resolución de Problemas Técnicos:** La implementación de una caché en disco/memoria en la API de cotizaciones ([monedapi.ts](file:///c:/projects/inta_calculadora_costos_lab/lib/monedapi.ts)) evidencia la solución de problemas de disponibilidad o límites de tasa con servicios de terceros.
+
+## 5. Aprendizajes Técnicos y Buenas Prácticas Implementadas
+
+- **Aislamiento de la Lógica de Negocio:** Encapsular toda la lógica de cálculo en [lib/cost-calculation.ts](file:///c:/projects/inta_calculadora_costos_lab/lib/cost-calculation.ts) separada de la UI fue una decisión clave. Esto permitió implementar una suite de testing con Vitest ([__tests__/cost-calculation.test.ts](file:///c:/projects/inta_calculadora_costos_lab/__tests__/cost-calculation.test.ts)) para garantizar que las matemáticas presupuestarias no tuvieran regresiones.
+- **Arquitectura de Interfaz Reactiva:** Uso intensivo de `useMemo` para evitar recalcular todos los niveles cuando se ajusta un solo input, garantizando un rendimiento fluido en la UI.
+- **Tipado Fuerte de Dominio:** Definición de un árbol de estados complejo y estrictamente tipado ([LevelState](file:///c:/projects/inta_calculadora_costos_lab/lib/cost-calculation.ts#264-270), [IndirectSublevelState](file:///c:/projects/inta_calculadora_costos_lab/lib/cost-calculation.ts#219-222)) en TypeScript, lo que previene errores de propiedades nulas en tiempo de compilación.
+- **Resiliencia en Integración Externa:** El manejo de fallos en el *fetch* a la API del dólar (timeouts, reintentos y fallbacks a cachés locales) es una buena práctica avanzada para aplicaciones frontend "mission-critical".
+
+## 6. Complejidad Técnica
+
+- **Nivel de Complejidad:** **Medio-Alto** (a nivel de lógica de cliente). Si bien no posee una base de datos compleja tras una API completa, la complejidad reside enteramente en la orquestación de estados anidados en React y la propagación matemática en cascada.
+- **Componentes Críticos:**
+  - [lib/cost-calculation.ts](file:///c:/projects/inta_calculadora_costos_lab/lib/cost-calculation.ts): El motor puro, crítico para que el negocio no tenga pérdidas.
+  - El mecanismo dinámico de generación de componentes en [app/page.tsx](file:///c:/projects/inta_calculadora_costos_lab/app/page.tsx) que renderiza diferentes tarjetas de entrada basado en las uniones discriminadas (Discriminated Unions) del estado (Direct, Indirect, Sequential Percentage).
+
+## 8. Análisis Meta (Ingeniería con IA)
+
+- **Evidencia de Co-creación:** El historial de Git plagado de ramas `codex/*` es la prueba material del uso de un agente especializado. El humano diseccionó el problema en requerimientos granulares (features en `docs/features/`) que el agente consumió (TDD impulsado por documentación).
+- **Clasificación del Proyecto:** Es un proyecto **Profesionalizable / de Prototipaje Avanzado**. Supera el nivel de un experimento; es una herramienta funcional, testeable y lista para productivo, demostrando cómo la IA acelera el paso de guía teórica a software aplicable.
+- **Aprendizaje Progresivo:** Se nota una maduración arquitectónica: empezar por interfaces monolíticas hacia separar contextos, extraer lógicas a `lib` e incluir validaciones/tests a posteriori, marcando una estabilización guiada por el humano hacia buenas prácticas.
+
+---
+
+## 7. Síntesis Profesional (Formato CV)
+
+**Calculadora de Costos Financieros para Servicios de Laboratorio (Prototipo Técnico)**
+*Rol: Liderazgo Técnico / Ingeniero de Software Asociado (Human-in-the-loop AI Engineering)*
+*Tecnologías: Next.js, React, TypeScript, Tailwind CSS, Vitest, Git.*
+
+- Arquitecté y desarrollé una aplicación web robusta orientada a la estimación económica y costeo de servicios de laboratorio en cinco niveles escalonados, garantizando precisión funcional mediante una lógica de cálculo aislada y fuertemente tipada en TypeScript.
+- Diseñé un flujo de desarrollo altamente iterativo utilizando ingeniería colaborativa asistida por agentes de IA (AI-assisted coding), orquestando el pasaje de requerimientos de negocio complejos (basados en guías institucionales) a código funcional mediante la revisión sistemática de más de 65 Pull Requests incrementales.
+- Implementé patrones arquitectónicos avanzados en el cliente (Single Page Application, manejo profundo de estado en React con Contexts y `useMemo`, y uniones discriminadas) junto con integración resiliente asíncrona a APIs externas para obtención en tiempo real de tipos de cambio (incorporando estrategias de fallback y caché).
+- Establecí la base para escalabilidad y mantenibilidad al incorporar pruebas unitarias (Vitest) sobre el motor de cálculo, asegurando que la complejidad iterativa no generara regresiones presupuestarias.

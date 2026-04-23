@@ -87,3 +87,5 @@ normaliza la respuesta al contrato usado por la interfaz.
   contingencia).
 - **Encabezados HTTP**: `cache-control: public, s-maxage=3600,
   stale-while-revalidate=300` y `retry-after: 300` ante indisponibilidad.
+
+soy de INTA MJ

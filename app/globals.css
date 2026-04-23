@@ -1,3 +1,5 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -7,20 +9,24 @@
 }
 
 body {
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
+  font-family: 'DM Sans', system-ui, -apple-system, sans-serif;
+  background-color: #F1F3F5;
 }
 
-html {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
+/* Ocultar scrollbar en nav de tabs (mobile) */
+.scrollbar-hide {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
 }
 
-main {
-  width: 100%;
-  max-width: 100%;
-  overflow-x: auto;
+/* Animación de entrada de pantalla */
+@keyframes screenEnter {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.screen-enter {
+  animation: screenEnter 0.22s ease;
 }

@@ -249,7 +249,7 @@ export function SummaryScreen({
           justifyContent: "space-between",
           background: PDF.blue,
           color: PDF.white,
-          padding: "20px 40px",
+          padding: "16px 40px",
         }}
       >
         <div style={{ display: "flex", alignItems: "center", gap: "14px" }}>
@@ -277,7 +277,7 @@ export function SummaryScreen({
       </div>
       <div style={{ height: "3px", background: PDF.green }} />
 
-      <div style={{ padding: "22px 40px 26px" }}>
+      <div style={{ padding: "16px 40px 18px" }}>
         {/* Datos del servicio */}
         <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "16px" }}>
           <tbody>
@@ -312,8 +312,8 @@ export function SummaryScreen({
             border: `1px solid ${PDF.line}`,
             borderLeft: `4px solid ${PDF.blue}`,
             borderRadius: "6px",
-            padding: "14px 18px",
-            marginBottom: "18px",
+            padding: "11px 18px",
+            marginBottom: "12px",
             breakInside: "avoid",
           }}
         >
@@ -334,18 +334,18 @@ export function SummaryScreen({
         <div style={{ fontSize: "13px", fontWeight: 700, color: PDF.blueDark, marginBottom: "6px" }}>
           Desglose por niveles
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "18px", fontSize: "11.5px" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "12px", fontSize: "11.5px" }}>
           <thead>
             <tr style={{ background: PDF.blue, color: PDF.white }}>
-              <th style={{ textAlign: "left", padding: "7px 10px", fontWeight: 600 }}>Concepto</th>
-              <th style={{ textAlign: "right", padding: "7px 10px", fontWeight: 600, width: "160px" }}>Importe (ARS)</th>
+              <th style={{ textAlign: "left", padding: "6px 10px", fontWeight: 600 }}>Concepto</th>
+              <th style={{ textAlign: "right", padding: "6px 10px", fontWeight: 600, width: "160px" }}>Importe (ARS)</th>
             </tr>
           </thead>
           <tbody>
             {levels.map((lv) => (
               <Fragment key={lv.id}>
                 <tr style={{ background: "#EDF3F8" }}>
-                  <td style={{ padding: "7px 10px", fontWeight: 700, color: PDF.blueDark, borderTop: `1px solid ${PDF.line}` }}>
+                  <td style={{ padding: "6px 10px", fontWeight: 700, color: PDF.blueDark, borderTop: `1px solid ${PDF.line}` }}>
                     {lv.label}
                   </td>
                   <td style={{ padding: "7px 10px", textAlign: "right", fontWeight: 700, color: PDF.blueDark, borderTop: `1px solid ${PDF.line}` }}>
@@ -354,10 +354,10 @@ export function SummaryScreen({
                 </tr>
                 {lv.breakdown.map((br) => (
                   <tr key={`${lv.id}-${br.label}`}>
-                    <td style={{ padding: "5px 10px 5px 24px", color: PDF.text, borderTop: `1px solid ${PDF.line}` }}>
+                    <td style={{ padding: "4px 10px 4px 24px", color: PDF.text, borderTop: `1px solid ${PDF.line}` }}>
                       {br.label}
                     </td>
-                    <td style={{ padding: "5px 10px", textAlign: "right", color: br.value > 0 ? PDF.text : PDF.muted, borderTop: `1px solid ${PDF.line}` }}>
+                    <td style={{ padding: "4px 10px", textAlign: "right", color: br.value > 0 ? PDF.text : PDF.muted, borderTop: `1px solid ${PDF.line}` }}>
                       {fmtARS(br.value)}
                     </td>
                   </tr>
@@ -365,7 +365,7 @@ export function SummaryScreen({
               </Fragment>
             ))}
             <tr style={{ background: PDF.blueDark, color: PDF.white }}>
-              <td style={{ padding: "9px 10px", fontWeight: 800 }}>Costo Unitario Total</td>
+              <td style={{ padding: "8px 10px", fontWeight: 800 }}>Costo Unitario Total</td>
               <td style={{ padding: "9px 10px", textAlign: "right", fontWeight: 800 }}>{fmtARS(grandTotal)}</td>
             </tr>
           </tbody>
@@ -375,7 +375,7 @@ export function SummaryScreen({
         <div style={{ fontSize: "13px", fontWeight: 700, color: PDF.blueDark, marginBottom: "6px" }}>
           Precio y afectación institucional
         </div>
-        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "18px", fontSize: "11.5px", breakInside: "avoid" }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", marginBottom: "12px", fontSize: "11.5px", breakInside: "avoid" }}>
           <tbody>
             {[
               { label: "Precio base", val: basePrice },
@@ -383,12 +383,12 @@ export function SummaryScreen({
               { label: `Afectación Centro (${pricing.porcentajeCentro}%)`, val: afCentro },
             ].map((row) => (
               <tr key={row.label}>
-                <td style={{ padding: "6px 10px", borderTop: `1px solid ${PDF.line}` }}>{row.label}</td>
-                <td style={{ padding: "6px 10px", textAlign: "right", borderTop: `1px solid ${PDF.line}` }}>{fmtARS(row.val)}</td>
+                <td style={{ padding: "5px 10px", borderTop: `1px solid ${PDF.line}` }}>{row.label}</td>
+                <td style={{ padding: "5px 10px", textAlign: "right", borderTop: `1px solid ${PDF.line}` }}>{fmtARS(row.val)}</td>
               </tr>
             ))}
             <tr style={{ background: "#EBF7EF" }}>
-              <td style={{ padding: "9px 10px", fontWeight: 800, color: PDF.green, borderTop: `1px solid ${PDF.line}` }}>Precio neto</td>
+              <td style={{ padding: "8px 10px", fontWeight: 800, color: PDF.green, borderTop: `1px solid ${PDF.line}` }}>Precio neto</td>
               <td style={{ padding: "9px 10px", textAlign: "right", fontWeight: 800, color: PDF.green, borderTop: `1px solid ${PDF.line}` }}>{fmtARS(precioNeto)}</td>
             </tr>
           </tbody>

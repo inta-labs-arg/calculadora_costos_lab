@@ -10,6 +10,8 @@ Estimación de costos rutinarios de laboratorio en **cinco niveles acumulativos*
 [![Estado: prototipo](https://img.shields.io/badge/Estado-prototipo%20funcional-F39200.svg)](#estado-y-alcance)
 [![Next.js](https://img.shields.io/badge/Next.js-13-000000.svg)](https://nextjs.org/)
 
+**🔗 App en vivo:** https://inta-labs-arg.github.io/inta_calculadora_costos_lab/
+
 </div>
 
 ---
@@ -88,19 +90,17 @@ npx tsc --noEmit  # verificación de tipos
 
 ## Despliegue en GitHub Pages
 
-El proyecto está configurado para **exportación estática** (`output: "export"` en
-[next.config.js](next.config.js)). `npm run build` genera la carpeta `out/`, que se publica como
-sitio estático.
+El proyecto se publica como **sitio estático** (`output: "export"` en
+[next.config.js](next.config.js)) mediante **GitHub Actions**. El workflow
+[deploy-pages.yml](.github/workflows/deploy-pages.yml) buildea y despliega automáticamente en cada
+push a `main`; el `basePath` se deriva solo del nombre del repositorio, por lo que funciona igual bajo
+una cuenta personal o una organización.
 
-Si el sitio se sirve bajo un subdirectorio (`https://usuario.github.io/repositorio`), definir la
-variable de entorno antes del build:
+Para activarlo una sola vez: en **Settings → Pages → Build and deployment → Source**, elegir
+**GitHub Actions**.
 
-```bash
-NEXT_PUBLIC_BASE_PATH="/repositorio" npm run build
-```
-
-Luego publicar el contenido de `out/` en la rama/entorno de GitHub Pages (por ejemplo, con GitHub
-Actions o subiendo `out/` a la rama `gh-pages`).
+Build local equivalente (opcional): `NEXT_PUBLIC_BASE_PATH="/inta_calculadora_costos_lab" npm run build`
+genera la carpeta `out/`.
 
 ## Tipo de cambio (carga manual)
 

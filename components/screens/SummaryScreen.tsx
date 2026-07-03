@@ -80,7 +80,13 @@ export function SummaryScreen({
   const [expanded, setExpanded] = useState<Record<string, boolean>>({ nivel1: true, serviciosGenerales: false, acreditacion: false });
   const pdfRef = useRef<HTMLDivElement>(null);
 
-  const date = new Date(quoteDateISO).toLocaleDateString("es-AR");
+  // Parsear "YYYY-MM-DD" como fecha LOCAL (no UTC) para evitar el desfasaje de
+  // un día: new Date("2026-07-03") se interpreta como UTC y en ART muestra el 2/7.
+  const date = (() => {
+    const [y, m, d] = quoteDateISO.split("-").map(Number);
+    const parsed = y && m && d ? new Date(y, m - 1, d) : new Date();
+    return parsed.toLocaleDateString("es-AR");
+  })();
   const basePrice = pricingMode === "auto" ? grandTotal : (pricing.precioARS || grandTotal);
   const afEEA = round2(basePrice * (pricing.porcentajeEEA / 100));
   const afCentro = round2(basePrice * (pricing.porcentajeCentro / 100));

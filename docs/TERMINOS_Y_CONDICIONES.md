@@ -31,15 +31,14 @@ resultados **recae exclusivamente en la persona usuaria**.
 ## 4. Ausencia de garantías
 
 El software se ofrece «tal cual» (*as-is*), bajo licencia [MIT](../LICENSE), sin garantía de
-exactitud, disponibilidad ni aptitud para un fin determinado. La cotización de moneda proviene de un
-servicio externo y puede no estar disponible o estar desactualizada.
+exactitud, disponibilidad ni aptitud para un fin determinado. El tipo de cambio se carga de forma
+manual y es responsabilidad de la persona usuaria mantenerlo actualizado.
 
 ## 5. Tratamiento de datos
 
-El cálculo se realiza íntegramente en el navegador de la persona usuaria. No se envían datos a un
-servidor propio del proyecto; la única comunicación externa es la consulta del tipo de cambio. La
-información cargada no se almacena de forma remota (sólo las tarifas horarias quedan en el
-`localStorage` del navegador).
+El cálculo se realiza íntegramente en el navegador de la persona usuaria. La aplicación **no envía
+datos a ningún servidor ni consulta servicios externos**. La información cargada no se almacena de
+forma remota (sólo las tarifas horarias quedan en el `localStorage` del navegador).
 
 ## 6. Propiedad intelectual y contacto
 

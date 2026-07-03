@@ -122,9 +122,9 @@ export function TermsAndConditions() {
                 <p>
                   El software se ofrece &laquo;tal cual&raquo; (<em>as-is</em>),
                   bajo licencia MIT, sin garantía de exactitud, disponibilidad ni
-                  aptitud para un fin determinado. La cotización de moneda
-                  proviene de un servicio externo y puede no estar disponible o
-                  estar desactualizada.
+                  aptitud para un fin determinado. El tipo de cambio se carga de
+                  forma manual y es responsabilidad de la persona usuaria
+                  mantenerlo actualizado.
                 </p>
               </section>
 
@@ -133,10 +133,11 @@ export function TermsAndConditions() {
                   5. Tratamiento de datos
                 </h3>
                 <p>
-                  El cálculo se realiza íntegramente en tu navegador. No se
-                  envían tus datos a ningún servidor propio; la única
-                  comunicación externa es la consulta del tipo de cambio. La
-                  información que cargás no se almacena de forma remota.
+                  El cálculo se realiza íntegramente en tu navegador. La
+                  aplicación <strong>no envía tus datos a ningún servidor</strong>{" "}
+                  ni consulta servicios externos. La información que cargás no se
+                  almacena de forma remota (sólo las tarifas horarias quedan en el
+                  navegador).
                 </p>
               </section>
 

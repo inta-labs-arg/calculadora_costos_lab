@@ -9,9 +9,9 @@ import {
   type ReactNode
 } from "react";
 
-export const MONEDAPI_EXRATE_URL = "/api/monedapi/usd";
-
-type ExchangeRateSource = "manual" | "monedapi" | "cache";
+// El tipo de cambio se carga manualmente. La app no consulta servicios externos:
+// funciona 100% en el cliente, lo que la hace apta para hosting estático.
+type ExchangeRateSource = "manual";
 
 export interface ExchangeRateState {
   rate: number;
@@ -31,29 +31,11 @@ interface ExchangeRateContextValue {
   manualState: ManualExchangeRateState;
   updateManualState: (updates: Partial<ManualExchangeRateState>) => void;
   applyManualState: () => void;
-  fetchMonedapiRate: () => Promise<void>;
-  isFetching: boolean;
 }
 
 const ExchangeRateContext = createContext<ExchangeRateContextValue | undefined>(
   undefined
 );
-
-function normalizeRateValue(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value)) {
-    return value;
-  }
-
-  if (typeof value === "string") {
-    const sanitized = value.replace(/,/g, ".");
-    const parsed = Number.parseFloat(sanitized);
-    if (!Number.isNaN(parsed)) {
-      return parsed;
-    }
-  }
-
-  return Number.NaN;
-}
 
 const todayISO = new Date().toISOString().slice(0, 10);
 
@@ -69,7 +51,6 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
     dateISO: manualState.dateISO,
     note: manualState.note
   });
-  const [isFetching, setIsFetching] = useState(false);
 
   const updateManualState = useCallback(
     (updates: Partial<ManualExchangeRateState>) => {
@@ -120,107 +101,14 @@ export function ExchangeRateProvider({ children }: { children: ReactNode }) {
     });
   }, [manualState]);
 
-  const fetchMonedapiRate = useCallback(async () => {
-    setIsFetching(true);
-    try {
-      const response = await fetch(MONEDAPI_EXRATE_URL, {
-        headers: { Accept: "application/json" }
-      });
-      const contentType = response.headers.get("content-type") ?? "";
-
-      if (!response.ok) {
-        let errorMessage = `Respuesta inesperada del servicio de Monedapi: ${response.status} ${response.statusText}`;
-        if (contentType.includes("application/json")) {
-          try {
-            const { message } = (await response.json()) as { message?: string };
-            if (message) {
-              errorMessage = message;
-            }
-          } catch (error) {
-            console.error(
-              "No fue posible parsear el error del endpoint /api/monedapi/usd",
-              error
-            );
-          }
-        }
-        throw new Error(errorMessage);
-      }
-
-      if (!contentType.includes("application/json")) {
-        throw new Error("La respuesta del endpoint /api/monedapi/usd no es JSON");
-      }
-
-      const payload = (await response.json()) as {
-        rate?: number;
-        dateISO?: string;
-        source?: ExchangeRateSource;
-      };
-
-      const normalizedRate = normalizeRateValue(payload.rate);
-      if (Number.isNaN(normalizedRate)) {
-        throw new Error(
-          "El endpoint /api/monedapi/usd devolvió un tipo de cambio inválido"
-        );
-      }
-
-      const resolvedDate = payload.dateISO ? new Date(payload.dateISO) : null;
-      if (!resolvedDate || Number.isNaN(resolvedDate.getTime())) {
-        throw new Error("El endpoint /api/monedapi/usd devolvió una fecha inválida");
-      }
-
-      const source: ExchangeRateSource =
-        payload.source === "cache"
-          ? "cache"
-          : payload.source === "manual"
-            ? "manual"
-            : "monedapi";
-
-      const resolvedDateISO = resolvedDate.toISOString().slice(0, 10);
-
-      setState({
-        rate: normalizedRate,
-        source,
-        dateISO: resolvedDateISO,
-        note: manualState.note
-      });
-
-      // Sincronizar el estado manual para que el input (enlazado a manualState.rate)
-      // refleje la cotización y onBlur/applyManualState no la pise con el valor viejo.
-      setManualState((prev) => ({
-        ...prev,
-        rate: normalizedRate,
-        dateISO: resolvedDateISO
-      }));
-    } catch (error) {
-      setState({
-        rate: manualState.rate,
-        source: "manual",
-        dateISO: manualState.dateISO,
-        note: manualState.note
-      });
-      throw error;
-    } finally {
-      setIsFetching(false);
-    }
-  }, [manualState]);
-
   const value = useMemo(
     () => ({
       state,
       manualState,
       updateManualState,
-      applyManualState,
-      fetchMonedapiRate,
-      isFetching
+      applyManualState
     }),
-    [
-      state,
-      manualState,
-      updateManualState,
-      applyManualState,
-      fetchMonedapiRate,
-      isFetching
-    ]
+    [state, manualState, updateManualState, applyManualState]
   );
 
   return (

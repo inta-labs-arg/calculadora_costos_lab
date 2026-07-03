@@ -18,7 +18,7 @@ Publicación inicial del prototipo como repositorio abierto bajo licencia MIT.
   con aritmética de precisión decimal (Decimal.js).
 - Interfaz por pantallas (dashboard + niveles + resumen) construida con Next.js 13 y Tailwind CSS.
 - Gestión de tarifas horarias por perfil, persistidas en `localStorage`.
-- Integración de tipo de cambio USD → ARS vía Monedapi, con caché y fallback.
+- Carga manual del tipo de cambio USD → ARS (sin dependencias de servicios externos).
 - Exportación de supuestos a JSON y del resumen a PDF.
 - Integración visible del logo institucional del INTA en el encabezado.
 

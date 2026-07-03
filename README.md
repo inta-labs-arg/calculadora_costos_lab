@@ -30,7 +30,8 @@ Estimación de costos rutinarios de laboratorio en **cinco niveles acumulativos*
 
 Calculadora web que estima el **costo unitario** de un ensayo o servicio analítico de laboratorio,
 descomponiéndolo en cinco niveles de costeo acumulativos. Toda la lógica corre en el cliente
-(React + Next.js): no hay backend ni base de datos, salvo un proxy a una API pública de tipo de cambio.
+(React + Next.js): no hay backend ni base de datos, y no consulta servicios externos. Esto la hace
+apta para hosting estático (GitHub Pages).
 
 Sirve para construir escenarios económicos reproducibles, documentar los supuestos de una estimación
 y exportarlos para respaldo o revisión.
@@ -46,7 +47,7 @@ Esta aplicación es una **interpretación** de un documento **público** del INT
 La **idea, la metodología y su marco conceptual pertenecen a sus autoras/es**. Esta calculadora es
 una implementación de software que interpreta esa metodología; puede diferir en detalles de la
 formulación original. Para consultas sobre **la Guía o la metodología** (no sobre el software),
-el contacto de referencia es **Mercedes Goizueta** — `[goizueta.mercedes@inta.gob.ar]`.
+el contacto de referencia es **Mercedes Goizueta** — goizueta.mercedes@inta.gob.ar.
 
 ## Los cinco niveles de cálculo
 
@@ -72,8 +73,8 @@ soporte formal ni garantías de disponibilidad. La persistencia es mínima (tari
 - **Framework:** Next.js 13 (App Router) · **UI:** React 18 + Tailwind CSS 3
 - **Lenguaje:** TypeScript 5 (strict) · **Aritmética:** Decimal.js
 - **Formularios:** react-hook-form + Zod · **Unidades:** convert-units
-- **Exportación:** html2pdf.js (lazy), papaparse · **Tests:** Vitest + Testing Library
-- **Despliegue:** Vercel
+- **Exportación:** html2pdf.js (lazy), papaparse · **Tests:** Vitest
+- **Despliegue:** sitio estático (GitHub Pages)
 
 ## Desarrollo local
 
@@ -85,21 +86,28 @@ npm test          # suite de pruebas (Vitest)
 npx tsc --noEmit  # verificación de tipos
 ```
 
-## Despliegue en Vercel
+## Despliegue en GitHub Pages
 
-Importar el repositorio en Vercel con los valores por defecto de Next.js:
+El proyecto está configurado para **exportación estática** (`output: "export"` en
+[next.config.js](next.config.js)). `npm run build` genera la carpeta `out/`, que se publica como
+sitio estático.
 
-- **Framework:** Next.js · **Build:** `npm run build` · **Salida:** `.next`
+Si el sitio se sirve bajo un subdirectorio (`https://usuario.github.io/repositorio`), definir la
+variable de entorno antes del build:
 
-## Tipo de cambio (Monedapi)
+```bash
+NEXT_PUBLIC_BASE_PATH="/repositorio" npm run build
+```
 
-La app obtiene el tipo de cambio oficial minorista USD → ARS desde **Monedapi**
-(`https://monedapi.ar`). El endpoint interno `/api/monedapi/usd` encapsula la consulta con:
+Luego publicar el contenido de `out/` en la rama/entorno de GitHub Pages (por ejemplo, con GitHub
+Actions o subiendo `out/` a la rama `gh-pages`).
 
-- Timeout de 4 s (`AbortController`).
-- Caché LRU en memoria: 60 min de validez, retención de emergencia hasta 24 h.
-- Fallback: ante caída del servicio responde desde caché (`source: "cache"`) con aviso en la UI.
-- Si no hay datos live ni en caché, devuelve `503 MONEDAPI_UNAVAILABLE` y la UI conserva el valor manual.
+## Tipo de cambio (carga manual)
+
+El tipo de cambio USD → ARS se **ingresa manualmente** en el panel de inicio. La aplicación no
+consulta servicios externos: funciona íntegramente en el navegador, lo que garantiza que siga
+operando sin dependencias de red y permite el hosting estático. Se recomienda cargar el valor del
+día (por ejemplo, el dólar vendedor del Banco de la Nación Argentina).
 
 ## Cómo participar
 
@@ -121,8 +129,8 @@ propia herramienta en el primer uso.
 
 | Rol                     | Persona               | Ámbito                                                                  | Contacto                      |
 | ----------------------- | --------------------- | ----------------------------------------------------------------------- | ----------------------------- |
-| Desarrollo del software | **Mauro H. Pinotti**  | Gerencia de Gestión Estratégica de la Investigación y Desarrollo (INTA) | `[pinotti.mauro@inta.gob.ar]` |
-| Autoría metodológica    | **Mercedes Goizueta** | INTA EEA Marcos Juárez                                                  | `[completar email]`           |
+| Desarrollo del software | **Mauro H. Pinotti**  | Gerencia de Gestión Estratégica de la Investigación y Desarrollo (INTA) | pinotti.mauro@inta.gob.ar     |
+| Autoría metodológica    | **Mercedes Goizueta** | INTA EEA Marcos Juárez                                                  | goizueta.mercedes@inta.gob.ar |
 | Autoría metodológica    | **Andrés Castellano** | INTA EEA Marcos Juárez                                                  | _ver Guía metodológica_       |
 
 Para cuestiones del **software** (bugs, ideas): abrí un _issue_. Para cuestiones de **metodología**:

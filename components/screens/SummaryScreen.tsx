@@ -102,7 +102,7 @@ export function SummaryScreen({
   ];
 
   const buildJSON = useCallback(() => {
-    const sourceLabel = exchangeRate.source === "monedapi" ? "Monedapi.ar" : exchangeRate.source === "cache" ? "Cache local" : "Manual";
+    const sourceLabel = "Manual";
     const { lastSyncISO, lastSyncType } = hourlyRateState;
     const hourlySyncLabel = lastSyncISO
       ? `Tabla local (${lastSyncISO} · ${lastSyncType === "import" ? "importación" : "exportación"})`

@@ -52,7 +52,7 @@ export function DashboardScreen({
   nivel2Done,
   nivel3Done,
 }: DashboardScreenProps) {
-  const { state: er, manualState, updateManualState, applyManualState, fetchMonedapiRate, isFetching } = useExchangeRate();
+  const { state: er, manualState, updateManualState, applyManualState } = useExchangeRate();
 
   const levels: DashboardLevel[] = [
     {
@@ -163,13 +163,9 @@ export function DashboardScreen({
                   onBlur={() => applyManualState()}
                   suffix="ARS/USD"
                 />
-                <button
-                  onClick={() => fetchMonedapiRate()}
-                  disabled={isFetching}
-                  className="text-[11px] text-inta-blue underline text-left disabled:opacity-50"
-                >
-                  {isFetching ? "Consultando BNA…" : "Actualizar desde BNA"}
-                </button>
+                <span className="text-[11px] text-inta-gray-400">
+                  Carga manual. Consultá el dólar del día (ej.: BNA vendedor).
+                </span>
               </div>
             </div>
           </div>

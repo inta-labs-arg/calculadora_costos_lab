@@ -123,17 +123,15 @@ queda por encima, igual o por debajo del costo base calculado.
 
 ## Tipo de cambio
 
-La app obtiene el dólar oficial minorista (USD → ARS) desde **Monedapi**. Podés:
-
-- Dejarlo en **automático** (consulta con caché y reintentos), o
-- Fijar un **valor manual**. Si el servicio externo no está disponible y no hay caché, la app
-  **conserva el valor manual** vigente.
+El tipo de cambio USD → ARS se **ingresa manualmente** en el panel de inicio. La aplicación no
+consulta servicios externos: funciona íntegramente en tu navegador. Consultá el valor del día (por
+ejemplo, el dólar vendedor del Banco de la Nación Argentina) y cargalo en el campo correspondiente.
 
 ## Preguntas frecuentes
 
 **¿Los datos se guardan en algún servidor?**
-No. Todo el cálculo ocurre en tu navegador. Sólo las tarifas horarias se guardan localmente
-(`localStorage`). Para conservar un escenario completo, exportá el JSON.
+No. Todo el cálculo ocurre en tu navegador y la app no consulta servicios externos. Sólo las tarifas
+horarias se guardan localmente (`localStorage`). Para conservar un escenario completo, exportá el JSON.
 
 **¿Puedo usarla para un laboratorio que no es del INTA?**
 Sí. La metodología es general; ajustá los parámetros a tu contexto. Recordá que es un prototipo no

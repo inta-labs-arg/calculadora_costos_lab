@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import "./globals.css";
 import { TermsAndConditions } from "@/components/legal/TermsAndConditions";
 
 export const metadata: Metadata = {
-  // Ajustar a la URL pública real del despliegue (Vercel u otra).
+  // Ajustar a la URL pública real del despliegue (p. ej. GitHub Pages).
   metadataBase: new URL(
     process.env.NEXT_PUBLIC_SITE_URL ?? "http://localhost:3000"
   ),
@@ -58,7 +59,16 @@ export default function RootLayout({
             personal de INTA; no representa una posición ni un producto oficial
             del organismo.
           </p>
-          <p className="mx-auto mt-3 max-w-4xl">
+          <p className="mx-auto mt-3 flex max-w-4xl flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <Link
+              href="/manual"
+              className="text-inta-blue underline underline-offset-2 hover:text-inta-blue-dark"
+            >
+              Manual de usuario
+            </Link>
+            <span aria-hidden className="text-inta-gray-300">
+              ·
+            </span>
             <TermsAndConditions />
           </p>
         </footer>

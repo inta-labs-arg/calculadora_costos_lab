@@ -37,7 +37,7 @@ representa al proyecto o a su comunidad.
 ## Aplicación
 
 Los casos de comportamiento abusivo, de acoso o de otro modo inaceptable pueden reportarse
-contactando al equipo del proyecto en `[completar email de moderación]`. Todas las quejas serán
+contactando al equipo del proyecto en pinotti.mauro@inta.gob.ar. Todas las quejas serán
 revisadas e investigadas, y resultarán en una respuesta apropiada a las circunstancias. Se respetará
 la confidencialidad de quien reporta un incidente.
 
